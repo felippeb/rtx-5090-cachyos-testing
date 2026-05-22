@@ -1,0 +1,32 @@
+# Codex Desktop build artifacts
+codex-desktop/codex-app/
+codex-desktop/Codex.dmg
+
+# Node runtime cache (downloaded by install.sh)
+codex-desktop/node-runtime/
+
+# Secrets / env files
+.env
+.env.*
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+
+# AI assistant session data
+.pi/
+.openclaude/
+.claude/
+
+# Benchmark outputs (generated)
+benchmark-output-*/
+*-bench-*/
+
+# Benchmark database and run outputs (generated)
+data/
+runs/

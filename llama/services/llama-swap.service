@@ -1,0 +1,30 @@
+[Unit]
+Description=llama-swap Model Proxy (Qwen + FLUX)
+After=network.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USERNAME__
+Group=__USERNAME__
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="GGML_CUDA_ENABLE_PEER_COPY=1"
+
+ExecStart=/usr/bin/llama-swap \
+    --config /opt/llama-swap/config.yaml \
+    --listen 0.0.0.0:9292
+
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+LimitNOFILE=65536
+MemoryMax=24G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

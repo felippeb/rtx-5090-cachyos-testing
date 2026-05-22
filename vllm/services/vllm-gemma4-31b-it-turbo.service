@@ -1,0 +1,38 @@
+[Unit]
+Description=vLLM Inference Server (Gemma 4 31B-it FP8, Turbo 262K context)
+After=network.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USERNAME__
+Group=__USERNAME__
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="CUDA_HOST_COMPILER=/usr/bin/gcc-14"
+Environment="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+WorkingDirectory=/opt/vllm-venv
+
+ExecStart=/opt/vllm-venv/bin/vllm serve google/gemma-4-31b-it-fp8 \
+    --host 0.0.0.0 \
+    --port 10500 \
+    --max-model-len 262144 \
+    --gpu-memory-utilization 0.92 \
+    --max-num-seqs 4 \
+    --max-num-batched-tokens 4096 \
+    --kv-cache-dtype fp8 \
+    --language-model-only \
+    --reasoning-parser gemma \
+    --enable-prefix-caching
+
+Restart=always
+RestartSec=10
+
+LimitNOFILE=65536
+MemoryMax=20G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

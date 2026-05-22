@@ -1,0 +1,51 @@
+[Unit]
+Description=vLLM Inference Server (Qwen3.6-35B-A3B MoE AWQ, Dual 131K context for flux pairing)
+After=network.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USERNAME__
+Group=__USERNAME__
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="CUDA_HOME=/opt/cuda"
+Environment="CUDAHOSTCXX=/usr/bin/g++-14"
+Environment="CUDA_HOST_COMPILER=/usr/bin/gcc-14"
+Environment="CPLUS_INCLUDE_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.3.1/include/c++:/usr/lib/gcc/x86_64-pc-linux-gnu/14.3.1/include/c++/x86_64-pc-linux-gnu:/usr/lib/gcc/x86_64-pc-linux-gnu/14.3.1/include"
+Environment="CC=/usr/bin/gcc-14"
+Environment="CXX=/usr/bin/g++-14"
+Environment="NVCC_THREADS=1"
+Environment="VLLM_ATTENTION_BACKEND=triton_attn"
+Environment="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+WorkingDirectory=/opt/vllm-venv
+
+ExecStart=/opt/vllm-venv/bin/vllm serve cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit \
+    --host 0.0.0.0 \
+    --port 10500 \
+    --max-model-len 131072 \
+    --gpu-memory-utilization 0.85 \
+    --max-num-seqs 1 \
+    --max-num-batched-tokens 4096 \
+    --attention-backend triton_attn \
+    --language-model-only \
+    --reasoning-parser qwen3 \
+    --enable-prefix-caching \
+    --enable-auto-tool-choice \
+    --tool-call-parser qwen3_xml \
+    --default-chat-template-kwargs '{"enable_thinking": false}'
+    --chat-template /opt/models-mtp/chat_template.jinja \
+
+Restart=always
+RestartSec=10
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+LimitNOFILE=65536
+MemoryMax=20G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

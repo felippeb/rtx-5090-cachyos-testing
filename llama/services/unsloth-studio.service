@@ -1,0 +1,30 @@
+[Unit]
+Description=Unsloth Studio (Qwen3.6-27B MTP, spec decode, Web UI)
+After=network.target
+
+[Service]
+Type=simple
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="HOME=/home/__USERNAME__"
+WorkingDirectory=/home/__USERNAME__
+
+ExecStart=/home/__USERNAME__/.unsloth/studio/unsloth_studio/bin/unsloth studio run \
+    -m /opt/models-mtp/qwen3.6-27b-mtp/Qwen3.6-27B-UD-Q4_K_XL.gguf \
+    -H 0.0.0.0 \
+    -p 8888 \
+    --enable-tools -y \
+    --spec-type draft-mtp \
+    --spec-draft-n-max 2
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+LimitNOFILE=65536
+MemoryMax=24G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

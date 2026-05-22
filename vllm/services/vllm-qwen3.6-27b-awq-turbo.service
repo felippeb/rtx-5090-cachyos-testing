@@ -1,0 +1,43 @@
+[Unit]
+Description=vLLM Inference Server (Qwen3.6-27B AWQ INT4, Turbo 262K context)
+After=network.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USERNAME__
+Group=__USERNAME__
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="CUDA_HOME=/opt/cuda"
+Environment="CUDAHOSTCXX=/usr/bin/g++-14"
+Environment="CUDA_HOST_COMPILER=/usr/bin/gcc-14"
+Environment="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+WorkingDirectory=/opt/vllm-venv
+
+ExecStart=/opt/vllm-venv/bin/vllm serve cyankiwi/Qwen3.6-27B-AWQ-INT4 \
+    --host 0.0.0.0 \
+    --port 10500 \
+    --max-model-len 255000 \
+    --gpu-memory-utilization 0.98 \
+    --max-num-seqs 4 \
+    --max-num-batched-tokens 16384 \
+    --kv-cache-dtype fp8 \
+    --attention-backend triton_attn \
+    --enable-auto-tool-choice \
+    --tool-call-parser qwen3_xml \
+    --enable-prefix-caching \
+    --default-chat-template-kwargs '{"enable_thinking": false}'
+    --chat-template /opt/models-mtp/chat_template.jinja \
+
+Restart=always
+RestartSec=10
+
+LimitNOFILE=65536
+MemoryMax=20G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

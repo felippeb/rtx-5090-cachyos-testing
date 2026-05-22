@@ -1,0 +1,47 @@
+[Unit]
+Description=llama.cpp Inference Server (Qwen3.6-35B-A3B MoE, Regular)
+After=network.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USERNAME__
+Group=__USERNAME__
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="GGML_CUDA_ENABLE_PEER_COPY=1"
+WorkingDirectory=/opt/llama.cpp/build
+
+ExecStart=/opt/llama.cpp/build/bin/llama-server \
+    -m /opt/models/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf \
+    --mmproj /opt/models/qwen3.6-35b-a3b/mmproj-F16.gguf \
+    -ngl 99 \
+    -fa on \
+    -c 131072 \
+    -np 1 \
+    -b 8192 \
+    -t 16 \
+    -tb 16 \
+    --temp 0.6 \
+    --top-p 0.95 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence_penalty 0.0 \
+    --repeat-penalty 1.0 \
+    --reasoning-format deepseek \
+    --jinja \
+    --chat-template-file /opt/llama-mtp/chat_template.jinja \
+    --host 0.0.0.0 \
+    --port 10500
+
+Restart=always
+RestartSec=10
+
+LimitNOFILE=65536
+MemoryMax=20G
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=default.target

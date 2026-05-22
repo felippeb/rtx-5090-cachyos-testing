@@ -1,0 +1,75 @@
+# GitLab CI Pipeline — RTX 5090 Local AI Setup
+
+stages:
+  - lint
+  - security
+
+variables:
+  PYTHON_VERSION: "3.12"
+
+# ============================================================
+# Lint Stage
+# ============================================================
+
+shellcheck:
+  stage: lint
+  image: koalaman/shellcheck-alpine:v0.10.0
+  script:
+    - find . -name "*.sh" ! -path './.git/*' ! -name 'setup-unsloth-studio.sh' ! -name 'setup-qwen36-27b-mtp.sh' ! -name 'setup-qwen36-35b-mtp.sh' ! -name 'setup-qwen36-mtp.sh' -print0 | xargs -0 shellcheck --severity=warning || true
+  allow_failure: true
+
+markdownlint:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - npm install -g markdownlint-cli2@latest
+  script:
+    - markdownlint-cli2 --fix '**/*.md' '#.git/**' '#runs/**' || true
+  allow_failure: true
+
+json-validation:
+  stage: lint
+  image: python:3.12-slim
+  script:
+    - |
+      exit_code=0
+      for file in $(find . -name "*.json" ! -path './.git/*' ! -path './runs/*'); do
+        if python3 -c "import json; json.load(open('$file'))"; then
+          echo "  OK: $file"
+        else
+          echo "  FAIL: $file"
+          exit_code=1
+        fi
+      done
+      exit $exit_code
+  allow_failure: true
+
+python-lint:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --no-cache-dir ruff
+  script:
+    - |
+      files=$(find . -name "*.py" ! -path './.git/*' ! -path './runs/*')
+      if [ -n "$files" ]; then
+        echo "$files" | xargs ruff check --select=E,F,W,I || true
+      else
+        echo "No Python files found."
+      fi
+  allow_failure: true
+
+# ============================================================
+# Security Stage — GitLab SAST + Secret Detection templates
+# Override their default "test" stage to use our "security" stage
+# ============================================================
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+sast:
+  stage: security
+
+secret_detection:
+  stage: security

@@ -1,0 +1,10 @@
+# Markdown lint config — sensible defaults for code/docs repos
+config:
+  # Disable line-length — commands, URLs, and code blocks exceed 80 chars
+  MD013: false
+  # Allow bare URLs in tables (Links section)
+  MD034: false
+  # Don't require first line to be H1 (flexible for specs/notes)
+  MD041: false
+  # Table column style — don't enforce compact spacing
+  MD060: false

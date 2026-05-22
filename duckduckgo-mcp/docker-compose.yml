@@ -1,0 +1,12 @@
+services:
+  duckduckgo-mcp:
+    build: .
+    container_name: duckduckgo-mcp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DDG_SAFE_SEARCH=OFF
+      - DDG_REGION=us-en
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
