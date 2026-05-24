@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POWER_LIMIT=400
+DEFAULT_POWER_LIMIT=575
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LLAMA_CONFIGS="$REPO_DIR/llama/services"
 VLLM_CONFIGS="$REPO_DIR/vllm/services"
@@ -75,6 +77,8 @@ case "$MODE" in
             fi
             sudo systemctl disable "$svc" 2>/dev/null || true
         done
+        echo "Restoring default power limit (${DEFAULT_POWER_LIMIT}W)..."
+        sudo nvidia-smi -pl "$DEFAULT_POWER_LIMIT" 2>/dev/null || echo "  (could not restore power limit — run manually: sudo nvidia-smi -pl $DEFAULT_POWER_LIMIT)"
         echo "Done. GPU is yours."
         exit 0
         ;;
@@ -467,6 +471,8 @@ if [[ "$DUAL_MODE" == "true" ]]; then
     done
 
     echo ""
+    echo "Setting power limit to ${POWER_LIMIT}W..."
+    sudo nvidia-smi -pl "$POWER_LIMIT" 2>/dev/null || echo "  (could not set power limit — run manually: sudo nvidia-smi -pl $POWER_LIMIT)"
     echo "✓ All dual-model services running."
     for idx in "${!SERVICE_NAMES[@]}"; do
         label="${SERVICE_LABELS[$idx]:-${SERVICE_NAMES[$idx]}}"
@@ -494,6 +500,8 @@ else
 
     sleep 3
     if systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "Setting power limit to ${POWER_LIMIT}W..."
+        sudo nvidia-smi -pl "$POWER_LIMIT" 2>/dev/null || echo "  (could not set power limit — run manually: sudo nvidia-smi -pl $POWER_LIMIT)"
         echo "✓ $SERVICE_NAME started successfully."
         echo "Kill all: ./service-switcher.sh stop"
     else
