@@ -31,7 +31,7 @@ ExecStart=/opt/llama-mtp/build/bin/llama-server \
     -ctkd q4_1 \
     -ctvd q4_1 \
     -ctxcp 16 \
-    -cram 4096 \
+    -cram 8192 \
     --cache-idle-slots \
     --no-warmup \
     --spec-type draft-mtp \
@@ -44,6 +44,7 @@ ExecStart=/opt/llama-mtp/build/bin/llama-server \
     --repeat-penalty 1.0 \
     --jinja \
     --chat-template-file /opt/llama-mtp/chat_template.jinja \
+    --chat-template-kwargs '{"enable_thinking": false}' \
     --host 0.0.0.0 \
     --port 10500
 
@@ -53,7 +54,7 @@ TimeoutStartSec=300
 TimeoutStopSec=120
 
 LimitNOFILE=65536
-MemoryMax=24G
+MemoryMax=28G
 OOMScoreAdjust=-500
 
 [Install]

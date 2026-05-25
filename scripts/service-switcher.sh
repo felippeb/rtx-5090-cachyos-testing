@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-POWER_LIMIT=400
+POWER_LIMIT=475
 DEFAULT_POWER_LIMIT=575
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LLAMA_CONFIGS="$REPO_DIR/llama/services"
