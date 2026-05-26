@@ -3,6 +3,7 @@ Description=Unsloth Studio (Qwen3.6-27B MTP, spec decode, Web UI)
 After=network.target
 
 [Service]
+ExecStartPre=+/usr/bin/nvidia-smi -pl 475
 Type=simple
 
 Environment="CUDA_VISIBLE_DEVICES=0"

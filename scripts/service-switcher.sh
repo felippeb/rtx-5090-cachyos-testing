@@ -2,8 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-POWER_LIMIT=475
-DEFAULT_POWER_LIMIT=575
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LLAMA_CONFIGS="$REPO_DIR/llama/services"
 VLLM_CONFIGS="$REPO_DIR/vllm/services"
@@ -77,8 +75,31 @@ case "$MODE" in
             fi
             sudo systemctl disable "$svc" 2>/dev/null || true
         done
-        echo "Restoring default power limit (${DEFAULT_POWER_LIMIT}W)..."
-        sudo nvidia-smi -pl "$DEFAULT_POWER_LIMIT" 2>/dev/null || echo "  (could not restore power limit — run manually: sudo nvidia-smi -pl $DEFAULT_POWER_LIMIT)"
+        # Remove all stale inference unit files from /etc/systemd/system/
+        for pattern in llama-server-*.service vllm-*.service flux-schnell.service llama-swap*.service; do
+            for old_unit in "$SYSTEM_SERVICE_DIR"/$pattern; do
+                [[ -f "$old_unit" ]] || continue
+                svc_name=$(basename "$old_unit" .service)
+                sudo systemctl stop "$svc_name" 2>/dev/null || true
+                sudo systemctl disable "$svc_name" 2>/dev/null || true
+                sudo rm -f "$old_unit"
+            done
+        done
+        # Also remove any orphaned units not in our repo
+        for old_unit in "$SYSTEM_SERVICE_DIR"/llama-server-*.service; do
+            [[ -f "$old_unit" ]] || continue
+            svc_name=$(basename "$old_unit" .service)
+            found=false
+            for dir in "$LLAMA_CONFIGS" "$VLLM_CONFIGS"; do
+                [[ -f "$dir/${svc_name}.service" ]] && { found=true; break; }
+            done
+            if [[ "$found" == "false" ]]; then
+                sudo systemctl stop "$svc_name" 2>/dev/null || true
+                sudo systemctl disable "$svc_name" 2>/dev/null || true
+                sudo rm -f "$old_unit"
+            fi
+        done
+        sudo systemctl daemon-reload
         echo "Done. GPU is yours."
         exit 0
         ;;
@@ -253,10 +274,26 @@ case "$MODE" in
         ;;
     swap)
         echo "Starting llama-swap proxy (manages qwen + flux-schnell)..."
+        # Stop all other services and remove their unit files
         for svc in "${ALL_SERVICES[@]}"; do
             if [[ "$svc" == "llama-swap" || "$svc" == "llama-swap-test" ]]; then continue; fi
             sudo systemctl stop "$svc" 2>/dev/null || true
             sudo systemctl disable "$svc" 2>/dev/null || true
+            sudo rm -f "$SYSTEM_SERVICE_DIR/${svc}.service"
+        done
+        # Remove any orphaned units not in our repo
+        for old_unit in "$SYSTEM_SERVICE_DIR"/llama-server-*.service; do
+            [[ -f "$old_unit" ]] || continue
+            svc_name=$(basename "$old_unit" .service)
+            found=false
+            for dir in "$LLAMA_CONFIGS" "$VLLM_CONFIGS"; do
+                [[ -f "$dir/${svc_name}.service" ]] && { found=true; break; }
+            done
+            if [[ "$found" == "false" ]]; then
+                sudo systemctl stop "$svc_name" 2>/dev/null || true
+                sudo systemctl disable "$svc_name" 2>/dev/null || true
+                sudo rm -f "$old_unit"
+            fi
         done
         for pattern in llama-server vllm; do
             STRAY_PIDS=$(pgrep -af "$pattern" 2>/dev/null | grep -v -E "journalctl|tail|less|grep|grep -v|llama-swap" | awk '{print $1}' || true)
@@ -266,6 +303,7 @@ case "$MODE" in
             fi
         done
         sleep 2
+        sudo systemctl daemon-reload
         sudo systemctl enable --now llama-swap
         sleep 3
         if systemctl is-active --quiet llama-swap; then
@@ -327,6 +365,48 @@ case "$MODE" in
         exit 1
         ;;
 esac
+
+# ── Clean up ALL stale inference unit files from /etc/systemd/system/ ──
+# This ensures no duplicates, renamed leftovers, or orphaned units survive.
+echo "Cleaning up stale inference service units..."
+STALE_REMOVED=0
+for pattern in llama-server-*.service vllm-*.service flux-schnell.service llama-swap*.service; do
+    for old_unit in "$SYSTEM_SERVICE_DIR"/$pattern; do
+        [[ -f "$old_unit" ]] || continue
+        svc_name=$(basename "$old_unit" .service)
+        # Only remove if it's one of our known services (not some unrelated package)
+        if printf '%s\n' "${ALL_SERVICES[@]}" | grep -qx "$svc_name"; then
+            sudo systemctl stop "$svc_name" 2>/dev/null || true
+            sudo systemctl disable "$svc_name" 2>/dev/null || true
+            sudo rm -f "$old_unit"
+            echo "  Removed stale unit: $svc_name.service"
+            ((STALE_REMOVED++)) || true
+        fi
+    done
+done
+# Also remove any llama-server-*.service that is NOT in our repo (orphaned renames)
+for old_unit in "$SYSTEM_SERVICE_DIR"/llama-server-*.service; do
+    [[ -f "$old_unit" ]] || continue
+    svc_name=$(basename "$old_unit" .service)
+    # Check if this service file exists in the repo
+    found=false
+    for dir in "$LLAMA_CONFIGS" "$VLLM_CONFIGS"; do
+        [[ -f "$dir/${svc_name}.service" ]] && { found=true; break; }
+    done
+    if [[ "$found" == "false" ]]; then
+        sudo systemctl stop "$svc_name" 2>/dev/null || true
+        sudo systemctl disable "$svc_name" 2>/dev/null || true
+        sudo rm -f "$old_unit"
+        echo "  Removed orphaned unit: $svc_name.service"
+        ((STALE_REMOVED++)) || true
+    fi
+done
+if [[ $STALE_REMOVED -gt 0 ]]; then
+    echo "Removed $STALE_REMOVED stale/orphaned unit(s)."
+else
+    echo "No stale units found."
+fi
+sudo systemctl daemon-reload
 
 DUAL_MODE=${DUAL_MODE:-false}
 if [[ "$DUAL_MODE" == "true" ]]; then
@@ -471,8 +551,6 @@ if [[ "$DUAL_MODE" == "true" ]]; then
     done
 
     echo ""
-    echo "Setting power limit to ${POWER_LIMIT}W..."
-    sudo nvidia-smi -pl "$POWER_LIMIT" 2>/dev/null || echo "  (could not set power limit — run manually: sudo nvidia-smi -pl $POWER_LIMIT)"
     echo "✓ All dual-model services running."
     for idx in "${!SERVICE_NAMES[@]}"; do
         label="${SERVICE_LABELS[$idx]:-${SERVICE_NAMES[$idx]}}"
@@ -500,8 +578,6 @@ else
 
     sleep 3
     if systemctl is-active --quiet "$SERVICE_NAME"; then
-        echo "Setting power limit to ${POWER_LIMIT}W..."
-        sudo nvidia-smi -pl "$POWER_LIMIT" 2>/dev/null || echo "  (could not set power limit — run manually: sudo nvidia-smi -pl $POWER_LIMIT)"
         echo "✓ $SERVICE_NAME started successfully."
         echo "Kill all: ./service-switcher.sh stop"
     else

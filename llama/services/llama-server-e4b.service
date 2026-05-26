@@ -4,6 +4,7 @@ After=network-online.target nvidia-persistenced.service
 Wants=nvidia-persistenced.service
 
 [Service]
+ExecStartPre=+/usr/bin/nvidia-smi -pl 475
 Type=simple
 User=__USERNAME__
 Group=__USERNAME__
