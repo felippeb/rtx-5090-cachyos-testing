@@ -1,0 +1,13 @@
+{
+  "chat_template_version": "v1.2.0",
+  "source": "docker/chat_template.jinja",
+  "description": "Patched Qwen3.6 chat template for coding-agent/tool-calling use (sakamakismile)",
+  "features": [
+    "system/developer message folding",
+    "think_on/think_off toggles",
+    "safe tool-call serialization",
+    "multi-step tool-use detection",
+    "vision content handling"
+  ],
+  "update_notes": "Track changes here when modifying chat_template.jinja"
+}

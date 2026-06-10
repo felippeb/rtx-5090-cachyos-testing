@@ -451,9 +451,66 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 | DuckDuckGo MCP | https://pypi.org/project/duckduckgo-mcp-server/ |
 | FLUX.1-schnell GGUF | https://huggingface.co/city96/FLUX.1-schnell-gguf |
 
+## Architecture
+
+### Configuration Layer (new)
+
+The `config/` directory provides a declarative model registry, replacing implicit knowledge encoded in docker-compose:
+
+```
+config/
+├── models.yaml            # Model definitions (path, quant, context, service mapping)
+├── backends.yaml          # Backend runtime config (llama.cpp, vLLM, etc.)
+├── profiles.yaml          # Service groupings / compose profiles
+└── chat-template-version.json  # Template versioning metadata
+```
+
+**Model Registry:** Each model in `config/models.yaml` declares its backend, quantization, context size, KV cache types, speculative decoding settings, and the corresponding docker-compose service. This enables tooling to query "what models exist" without parsing compose files.
+
+### Scripts (new)
+
+```
+scripts/
+├── switch-model.sh        # Registry-aware model switcher (replaces docker/switch.sh)
+├── diagnose.sh            # Runtime diagnostics: GPU, driver, services, template hash
+├── build-manifest.sh      # Reproducibility package: git, system, GPU, template metadata
+└── mtp-bench.py           # MTP-specific benchmarking (existing)
+```
+
+**switch-model.sh:** Resolves model keys from `config/models.yaml`, warns on experimental context tiers, starts the correct compose service. Drop-in replacement for `docker/switch.sh`.
+
+**diagnose.sh:** Outputs GPU model, driver version, CUDA version, running services, active model, context size, KV cache mode, VRAM usage, and chat template hash. Supports `--json` for CI integration.
+
+**build-manifest.sh:** Generates `build-manifest.json` with git commit, driver/CUDA versions, kernel, template SHA256, and registry stats — the reproducibility package for benchmark runs.
+
+### Benchmarking (improved)
+
+`benchmarks/benchmark-improved.py` adds variance reporting to the existing benchmark suite:
+- Multiple runs per prompt (default 5, configurable via `--runs`)
+- Median, p95, standard deviation for gen t/s and TTFT
+- Cold / warm cache mode distinction (`--mode cold|warm|all`)
+- JSON output to `runs/` directory for CI tracking
+
+### Context Safety Tiers
+
+Models with context sizes outside the stable range are flagged in `config/models.yaml`:
+
+| Tier | Range | Models |
+| --- | --- | --- |
+| **Stable** | 8K – 131K | Default for all models |
+| **Experimental** | 262K | NVFP4-MTP-262K, vLLM turbo variants |
+| **Research** | 1M+ | Not currently deployed |
+
+`switch-model.sh` warns when starting experimental-tier models.
+
 ## Repo Structure
 
 ```text
+├── config/                       # Declarative configuration
+│   ├── models.yaml               # Model registry
+│   ├── backends.yaml             # Backend definitions
+│   ├── profiles.yaml             # Service groupings
+│   └── chat-template-version.json
 ├── llama/                        # llama.cpp server setup
 │   ├── setup-mtp.sh              # Unified MTP setup (mainline + PR #22673) ⭐
 │   │                             #   --model 27b|35b|nvfp4
@@ -470,46 +527,26 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 │   ├── setup-router.sh           # Router mode setup (experimental)
 │   ├── kill.fish                 # Emergency kill script
 │   └── services/                 # systemd units (llama-server-*.service)
-├── vllm/                         # vLLM inference services
-│   ├── services/                 # AWQ/FP8/NVFP4/NVFP4-MTP variants
-│   ├── setup-vllm-qwen36.sh      # vLLM setup script (AWQ/FP8/NVFP4)
-│   └── setup-vllm-nvfp4-mtp.sh   # vLLM NVFP4-MTP setup (modelopt)
-├── scripts/                      # Utility scripts
-│   ├── nvfp4_quantize.py         # NVFP4 quantization pipeline
-│   ├── setup_nvfp4.sh            # NVFP4 model download + setup
-│   ├── pre-commit                # gitleaks secret scanner
-│   ├── service-switcher.sh       # Switch between models/modes
-│   └── reapply-services.sh       # Redeploy all systemd units + chat templates
+├── scripts/                      # Operational tooling
+│   ├── switch-model.sh           # Registry-aware model switcher
+│   ├── diagnose.sh               # Runtime diagnostics
+│   ├── build-manifest.sh         # Reproducibility manifest
+│   ├── service-switcher.sh       # Legacy switcher (deprecated)
+│   ├── reapply-services.sh       # Redeploy all systemd units + chat templates
+│   └── nvfp4_quantize.py         # NVFP4 quantization pipeline
 ├── benchmarks/                   # Benchmark runners + results
+│   ├── benchmark-improved.py     # Variance-aware benchmark (new)
 │   ├── benchmark.py              # General benchmark
 │   ├── run-tool-bench.sh         # Tool-eval benchmark runner
 │   ├── results.md                # Full benchmark results summary
 │   └── nvfp4-mtp-llama-vs-vllm.md  # Head-to-head comparison
-├── flux-server/                  # FLUX.1-schnell image generation
-│   ├── setup-flux.sh             # Install script
-│   ├── flux_schnell_server.py    # API server
-│   └── run_flux_with_prompt.py   # Generate with prompt
-├── duckduckgo-mcp/               # DuckDuckGo MCP server (Docker)
+├── duckduckgo-mcp/               # DuckDuckGo MCP server
 │   ├── start.sh / stop.sh        # Container management
 │   └── docker-compose.yml        # Container config
-├── free-claude-code/             # Claude Code proxy for local model
-│   ├── install.sh / uninstall.sh
-│   └── services/
+├── opencode/                     # OpenCode config templates
 ├── opencode-mem/                 # Persistent memory plugin for OpenCode
-│   ├── opencode-mem.jsonc        # Plugin config
-│   ├── loader.js                 # Local plugin loader
-│   └── fix-sharp.sh              # Fix sharp native binaries
-├── open-webui/                   # Open WebUI container management
-│   ├── start.sh / stop.sh        # Container management
-│   └── docker.sh                 # Docker run command
 ├── docs/                         # Documentation
-│   ├── qwen36-35b-mxfp4-nvfp4-setup.md
-│   ├── MEETILI_BUILD_NOTES.md
-│   ├── SETUP_BROWSER_HARNESS.md
-│   └── tauri-challenge-spec*.md
 ├── system/                       # Hardware monitoring configs
-│   ├── netdata.conf
-│   └── coolercontrol.conf
 ├── browser-harness -> ...        # Symlink to browser-harness repo
 └── opencode/                     # OpenCode config templates
 ```
