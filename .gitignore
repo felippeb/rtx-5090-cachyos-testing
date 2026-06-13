@@ -30,6 +30,7 @@ benchmark-output-*/
 # Benchmark database and run outputs (generated)
 data/
 runs/
+benchmarks/runs/
 benchmarks/wattage-results-*.json
 benchmarks/wattage-v2-results-*.json
 

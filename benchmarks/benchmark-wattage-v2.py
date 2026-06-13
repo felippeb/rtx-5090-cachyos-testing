@@ -23,7 +23,6 @@ CODING_CHALLENGE = (
     "- Name: Oquirrh Firewood\n"
     "- Location: Herriman, UT (Oquirrh Mountains, NOT West Valley)\n"
     "- Phone: (801) 555-0000\n"
-    "- Email: felippeburk@gmail.com\n"
     "- Pickup only (NO delivery) — off I-215 or Mountain View Corridor\n"
     "- Customers come from across Wasatch Front: West Valley, SLC, Sandy, "
     "Draper, Eagle Mountain, Saratoga Springs, Provo, Orem, etc.\n"
