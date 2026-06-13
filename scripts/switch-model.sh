@@ -293,10 +293,20 @@ set_power_limit() {
 ensure_config() {
     if [[ ! -f "$RTX_CONFIG/chat_template.jinja" ]]; then
         mkdir -p "$RTX_CONFIG"
-        if [[ -f "$CONFIG_DIR/chat_template.jinja" ]]; then
-            cp "$CONFIG_DIR/chat_template.jinja" "$RTX_CONFIG/chat_template.jinja"
-        elif [[ -f "$MODELS_DIR/chat_template.jinja" ]]; then
-            cp "$MODELS_DIR/chat_template.jinja" "$RTX_CONFIG/chat_template.jinja"
+        local src=""
+        for candidate in "$CONFIG_DIR/chat_template.jinja" \
+                         "$SCRIPT_DIR/llama/chat_template.jinja" \
+                         "$MODELS_DIR/chat_template.jinja"; do
+            if [[ -f "$candidate" ]]; then
+                src="$candidate"
+                break
+            fi
+        done
+        if [[ -n "$src" ]]; then
+            cp "$src" "$RTX_CONFIG/chat_template.jinja"
+            ok "Installed chat template from $src"
+        else
+            warn "No chat_template.jinja found — server will use model default."
         fi
     fi
 }
