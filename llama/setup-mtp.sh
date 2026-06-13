@@ -145,32 +145,30 @@ section_build() {
         fi
     fi
 
-    local WORK_DIR="$LLAMA_DIR"
     local NEEDS_CLONE=false
 
-    if [[ -d "$LLAMA_DIR" ]] && [[ -d "$LLAMA_DIR/.git" ]]; then
+    if [[ -d "$LLAMA_DIR/.git" ]]; then
         if [[ $UPDATE_MODE -eq 1 ]]; then
             ok "Update mode: will pull latest in $LLAMA_DIR"
         elif has_mtp "$LLAMA_DIR/build/bin/llama-server"; then
             ok "MTP already supported in existing build at $LLAMA_DIR"
             return
         else
-            warn "Existing build lacks MTP. Cloning fresh."
-            WORK_DIR="/tmp/llama-mtp-build"
+            warn "Existing build lacks MTP. Re-cloning fresh."
+            rm -rf "$LLAMA_DIR"
             NEEDS_CLONE=true
         fi
-    elif [[ ! -d "$LLAMA_DIR" ]]; then
+    else
         NEEDS_CLONE=true
-        WORK_DIR="/tmp/llama-mtp-build"
     fi
 
     if [[ "$NEEDS_CLONE" == true ]]; then
-        rm -rf "$WORK_DIR"
+        mkdir -p "$(dirname "$LLAMA_DIR")"
         info "Cloning llama.cpp (ggml-org, full history for merge)..."
-        git clone "$LLAMA_REPO" "$WORK_DIR"
+        git clone "$LLAMA_REPO" "$LLAMA_DIR"
     fi
 
-    pushd "$WORK_DIR" >/dev/null
+    pushd "$LLAMA_DIR" >/dev/null
 
     git merge --abort 2>/dev/null || true
 
@@ -181,7 +179,7 @@ section_build() {
     git checkout master 2>/dev/null || git checkout -b master origin/master
     git reset --hard origin/master
 
-    if grep -rq "draft.mtp\|DRAFT_MTP\|spec_type.*mtp" "$WORK_DIR/src/" "$WORK_DIR/common/" 2>/dev/null; then
+    if grep -rq "draft.mtp\|DRAFT_MTP\|spec_type.*mtp" src/ common/ 2>/dev/null; then
         ok "MTP support already in mainline. Skipping PR merge."
     else
         info "MTP not in current build. Fetching PR #$PR_NUM..."
@@ -200,12 +198,12 @@ section_build() {
         fi
     fi
 
-    if [[ -f "$WORK_DIR/build/CMakeCache.txt" ]]; then
+    if [[ -f build/CMakeCache.txt ]]; then
         local cached_src
-        cached_src=$(grep "CMAKE_HOME_DIRECTORY" "$WORK_DIR/build/CMakeCache.txt" 2>/dev/null | cut -d= -f2 || true)
-        if [[ -n "$cached_src" ]] && [[ "$cached_src" != "$WORK_DIR" ]]; then
+        cached_src=$(grep "CMAKE_HOME_DIRECTORY" build/CMakeCache.txt 2>/dev/null | cut -d= -f2 || true)
+        if [[ -n "$cached_src" ]] && [[ "$cached_src" != "$LLAMA_DIR" ]]; then
             info "Stale CMake cache from $cached_src. Clearing..."
-            rm -f "$WORK_DIR/build/CMakeCache.txt"
+            rm -f build/CMakeCache.txt
         fi
     fi
 
@@ -228,14 +226,7 @@ section_build() {
         fail "Build failed - binary not found"
     fi
 
-    if [[ "$WORK_DIR" != "$LLAMA_DIR" ]]; then
-        info "Moving build to $LLAMA_DIR..."
-        popd >/dev/null
-        rm -rf "$LLAMA_DIR"
-        mv "$WORK_DIR" "$LLAMA_DIR"
-    else
-        popd >/dev/null
-    fi
+    popd >/dev/null
 
     ok "MTP-enabled llama-server built at $binary"
 
@@ -307,37 +298,12 @@ section_models() {
     echo ""
 }
 
-# ─── Section 4: Migration ────────────────────────────────────────
-section_migrate() {
-    info "=== Section 4: Clean up old /opt install ==="
-
-    # Stop and disable old system-level services
-    local stopped=0
-    for svc in llama-server-nvfp4-mtp-131k llama-server-nvfp4-mtp-262k llama-server-nvfp4-mtp \
-              llama-server-mtp llama-server-mtp-131k llama-server-turbo llama-server; do
-        if systemctl is-active --quiet "$svc" 2>/dev/null; then
-            info "Stopping old service: $svc"
-            sudo systemctl stop "$svc" 2>/dev/null || true
-            stopped=1
-        fi
-        sudo systemctl disable "$svc" 2>/dev/null || true
-    done
-
-    if [[ $stopped -eq 1 ]]; then
-        ok "Old services stopped. Port 10500 is now free."
-    else
-        info "No old services were running."
-    fi
-
-    echo ""
-}
-
 # ─── Main ────────────────────────────────────────────────────────
 main() {
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║  User-Space MTP Setup — builds to ~/.local (no sudo)    ║"
-    echo "║  Target: $LLAMA_DIR                    ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
+    echo "╔══════════════════════════════════════════════════════════════════════╗"
+    echo "║  User-Space MTP Setup — builds to ~/.local (no sudo)               ║"
+    echo "║  Target: $LLAMA_DIR                          ║"
+    echo "╚══════════════════════════════════════════════════════════════════════╝"
     echo ""
 
     info "Setting up model: $MODEL"
@@ -346,7 +312,6 @@ main() {
     section_prerequisites
     section_build
     section_models
-    section_migrate
 
     ok "═══════════════════════════════════════════════════════════"
     ok "Setup complete! All user-space, no sudo needed."
