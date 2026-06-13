@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Declarative model registry (`config/models.yaml`) with aliases and context safety tiers
+- `scripts/diagnose.sh` — runtime diagnostics (GPU, driver, services, template hash)
+- `scripts/build-manifest.sh` — reproducibility manifest (git, system, GPU metadata)
+- HuggingFace CLI venv at `~/.local/share/rtx-testing/.venv-hf/` (user-space, no sudo)
+
+### Changed
+- **BREAKING:** Migrate llama.cpp from `/opt/` to user-space (`~/.local/share/rtx-testing/llama.cpp-nvfp4/`)
+- `llama/setup-mtp.sh` — rewritten for user-space: clones directly to final path, no `/tmp`, no sudo
+- `scripts/switch-model.sh` — native model switcher replacing `service-switcher.sh`; reads model registry, handles HF downloads, legacy cleanup, GPU memory wait loop
+- Build directory renamed from `llama-mtp` to `llama.cpp-nvfp4` for clarity
+- Symlink at `~/.local/bin/llama-server` → user-space build binary
+- Models install to `~/.local/share/rtx-testing/models/` (user-space)
+- Chat template deploys to `~/.config/rtx-testing/chat_template.jinja`
+
+### Fixed
+- `LD_LIBRARY_PATH` silent CPU fallback — uses `readlink -f` to resolve symlink to real binary directory
+- Stale systemd transient units — `clean_stale_units()` removes cached units before `systemd-run`
+- `ensure_config()` searches multiple locations for `chat_template.jinja` (config/, llama/, models/)
+- `stop_existing()` kills stray processes on port 10500, stops legacy system services, waits for GPU VRAM (20GB target, 60s timeout)
+
+### Deprecated
+- `scripts/service-switcher.sh` — replaced by `scripts/switch-model.sh`
+- `/opt/llama-mtp/` and `/opt/models-mtp/` — replaced by user-space equivalents
+- Legacy system-level systemd services (`llama-server-*`) — replaced by user units (`rtx-*`)
+
+### Documentation
+- Comprehensive README rewrite: user-space setup, model registry, context safety tiers, new architecture section
+- Known issues table updated with symlink CPU fallback fix
+
 ## [2026-05-21]
 
 ### Changed

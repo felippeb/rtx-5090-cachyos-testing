@@ -11,52 +11,67 @@ Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 | GPU | NVIDIA RTX 5090 (32GB GDDR7, Blackwell sm_120) |
 | OS | CachyOS (Arch-based, KDE Plasma, Wayland) |
 | Shell | fish |
-| CUDA | 13.2 (V13.2.78, driver 595.58.03) |
+| CUDA | 13.3 (driver 610.43.02) |
 | Runtime | llama.cpp mainline (ggml-org) + MTP PR #22673 (NVFP4 native), vLLM |
 | Default model | Qwen3.6-27B NVFP4-MTP (19.7 GB, 131K context, NVFP4 + speculative decoding) |
-| Alt models | Qwen3.6-27B MTP Q4_K_XL, Qwen3.6-35B-A3B MTP, Gemma 4 31B, Gemma 4 26B-A4B |
-| vLLM variants | AWQ/FP8/NVFP4 for Qwen3.6-27B, Qwen3.6-35B-A3B, Gemma 4 31B |
-| Image gen | FLUX.1-schnell (GGUF Q2_K quantized) |
+| Build location | `~/.local/share/rtx-testing/llama.cpp-nvfp4/` (user-space, no sudo) |
 | UI | OpenCode, Claude Code (CLI + VS Code), Open WebUI |
 | MCP tools | Context7 docs, Chrome DevTools, DuckDuckGo search, DesignMD |
-| Web search | DuckDuckGo MCP server (Docker, port 8000) |
 | Package manager | pacman / paru |
-
-## Build Layout
-
-Two separate llama.cpp builds:
-
-| Build | Path | Branch/PR | Models |
-| --- | --- | --- | --- |
-| **llama-mtp** | `/opt/llama-mtp/` | ggml-org mainline + MTP PR #22673 | Qwen3.6-27B MTP, Qwen3.6-27B NVFP4-MTP, Qwen3.6-35B-A3B MTP |
-| **llama.cpp** | `/opt/llama.cpp/` | am17an fork (mtp-clean) | Non-MTP models, Gemma 4 MTP (AtomicBot) |
 
 ## Quick Start
 
-### Unified MTP Setup (Recommended)
+### User-Space Setup (Recommended)
 
 ```fish
-sudo bash llama/setup-mtp.sh --model nvfp4          # Qwen3.6-27B NVFP4-MTP (~20GB) ⭐ daily driver
-sudo bash llama/setup-mtp.sh --model 27b            # Qwen3.6-27B MTP Q4_K_XL (~11GB)
-sudo bash llama/setup-mtp.sh --model 35b            # Qwen3.6-35B-A3B MTP (~23GB)
-sudo bash llama/setup-mtp.sh --all                  # All models
-sudo bash llama/setup-mtp.sh --all --update          # Rebuild llama.cpp only (keeps models)
-sudo bash llama/setup-mtp.sh --model nvfp4 --test   # Test install: /opt/llama-mtp-test/, port 10502
+# Fresh install — builds llama.cpp, downloads models, no sudo
+bash llama/setup-mtp.sh --model nvfp4
+
+# Rebuild only (keeps models)
+bash llama/setup-mtp.sh --model nvfp4 --update
 ```
 
-Builds llama.cpp from mainline (ggml-org) with MTP PR #22673 grafted on. Installs to `/opt/llama-mtp/`, models to `/opt/models-mtp/`. Idempotent — re-runs skip what's installed.
+Builds llama.cpp from mainline (ggml-org) with MTP PR #22673. Installs to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/share/rtx-testing/models/`. Idempotent — re-runs skip what's installed.
 
-### Deprecated Setup Scripts
+### Switch Models (User-Space)
 
-The following scripts are **deprecated** in favor of `setup-mtp.sh`:
-- `setup-qwen36-mtp.sh` — old MTP setup (havenoammo PR graft)
-- `setup-qwen36-27b-mtp.sh` — Unsloth MTP build for 27B
-- `setup-qwen36-35b-mtp.sh` — Unsloth MTP build for 35B
+```fish
+# ⭐ NVFP4-MTP (daily driver — best quality + speed)
+./scripts/switch-model.sh nvfp4        # Qwen3.6-27B NVFP4-MTP, 131K
+./scripts/switch-model.sh nvfp4-262k   # Qwen3.6-27B NVFP4-MTP, 262K (experimental)
 
-Still functional but not maintained. Use `setup-mtp.sh` instead.
+# Status, logs, stop
+./scripts/switch-model.sh status       # Running models + GPU info
+./scripts/switch-model.sh logs         # Follow logs of running model
+./scripts/switch-model.sh stop         # Stop all user-space models
+```
 
-### Other Models
+Uses systemd user units (`rtx-*`) via `systemd-run`. No sudo needed. Automatically handles:
+- Legacy system service cleanup (`llama-server-*` units)
+- GPU memory wait loop (20GB target, 60s timeout)
+- Stray process cleanup on port 10500
 
+### Model Registry
+
+Models are declared in `config/models.yaml`. Run `./scripts/switch-model.sh list` to see all registered models. Keys support aliases (`nvfp4`, `daily-driver`, `default`).
+
+### Deprecated: Legacy System Services
+
+The old `service-switcher.sh` and `/opt/`-based setup are **deprecated**. They required sudo, installed to system paths, and used legacy systemd services. The new user-space approach replaces them entirely.
+
+If you have an existing `/opt/` install:
+```fish
+# Stop legacy services (requires sudo)
+sudo systemctl disable --now llama-server-nvfp4-mtp-131k 2>/dev/null
+sudo rm -f /etc/systemd/system/llama-server-*.service
+
+# Remove old build + models (verify user-space copy exists first!)
+ls ~/.local/share/rtx-testing/models/qwen3.6-27b-nvfp4-mtp/ && sudo rm -rf /opt/llama-mtp/ /opt/models-mtp/
+```
+
+### Other Models (Deprecated Scripts)
+
+These scripts still work but are not maintained — use `setup-mtp.sh` instead:
 ```fish
 sudo bash llama/setup-gemma4.sh              # Gemma 4 31B
 sudo bash llama/setup-gemma4-mtp.sh          # Gemma 4 31B MTP (AtomicBot fork, TurboQuant)
@@ -64,92 +79,9 @@ sudo bash llama/setup-26b-a4b.sh             # Gemma 4 26B-A4B MoE
 sudo bash llama/setup-e4b.sh                 # Qwen3.6-E4B
 ```
 
-### Switch Between Models
-
-```fish
-# ⭐ NVFP4-MTP (daily driver — best quality + speed)
-./scripts/service-switcher.sh nvfp4-mtp-llama-131k  # Qwen3.6-27B NVFP4-MTP GGUF, 131K
-./scripts/service-switcher.sh nvfp4-mtp-llama-262k  # Qwen3.6-27B NVFP4-MTP GGUF, 262K (q4_1 KV)
-
-# Qwen3.6-27B MTP (Q4_K_XL quant)
-./scripts/service-switcher.sh mtp-131k           # Qwen3.6-27B MTP, 131K
-
-# Qwen3.6-35B-A3B variants
-./scripts/service-switcher.sh 35b-mtp-131k      # Qwen3.6-35B-A3B MTP, 131K (Q4_K_XL)
-./scripts/service-switcher.sh 35b-mxfp4-mtp-131k   # 35B MXFP4-MTP, 131K (spec decode n=6)
-./scripts/service-switcher.sh 35b-nvfp4-131k    # 35B NVFP4 (no MTP), 131K
-
-# Non-MTP models
-./scripts/service-switcher.sh turbo             # Qwen3.6-27B non-MTP, 131K (bf16 KV)
-./scripts/service-switcher.sh qwen              # Qwen3.6-27B non-MTP, 131K (q8_0 KV)
-./scripts/service-switcher.sh gemma4-turbo      # Gemma 4 31B, 131K (q4_1 KV)
-./scripts/service-switcher.sh gemma4            # Gemma 4 31B, 131K (f16 KV)
-./scripts/service-switcher.sh gemma4-mtp-131k   # Gemma 4 31B MTP, 131K (AtomicBot fork)
-./scripts/service-switcher.sh qwen35b-turbo     # Qwen3.6-35B-A3B, 131K (q4_1 KV)
-./scripts/service-switcher.sh qwen35b           # Qwen3.6-35B-A3B, 131K
-./scripts/service-switcher.sh e4b               # Gemma 4 E4B-it, 128K (vision + thinking)
-./scripts/service-switcher.sh a4b               # Gemma 4 26B-A4B MoE, 128K
-./scripts/service-switcher.sh stop              # Stop all servers
-```
-
-### vLLM Services
-
-```fish
-# NVFP4 (with/without MTP)
-./scripts/service-switcher.sh nvfp4-mtp                 # NVFP4-MTP vLLM, 131K (modelopt + MTP n=3)
-./scripts/service-switcher.sh nvfp4-mtp-turbo           # NVFP4-MTP vLLM, 256K (modelopt + MTP n=3)
-./scripts/service-switcher.sh nvfp4-turbo               # NVFP4, 131K (compressed-tensors)
-./scripts/service-switcher.sh nvfp4                     # NVFP4, 131K
-
-# FP8
-./scripts/service-switcher.sh fp8                       # FP8, 131K
-./scripts/service-switcher.sh fp8-turbo                 # FP8, 131K
-
-# AWQ INT4
-./scripts/service-switcher.sh awq                       # Qwen3.6-27B AWQ INT4, 131K
-./scripts/service-switcher.sh awq-turbo                 # Qwen3.6-27B AWQ INT4, 255K
-./scripts/service-switcher.sh awq-35b-131k              # Qwen3.6-35B-A3B MoE AWQ, 131K
-```
-
-### Router & Swap (Experimental)
-
-```fish
-# llama.cpp router mode — native model switching without restarts
-./scripts/service-switcher.sh router                     # Router on port 10500
-
-# llama-swap proxy — Qwen + FLUX on single port
-./scripts/service-switcher.sh swap                       # Swap proxy on port 9292
-```
-
-### DuckDuckGo MCP (Web Search)
-
-```fish
-./duckduckgo-mcp/start.sh              # Start container (port 8000)
-./duckduckgo-mcp/start.sh --rebuild    # Rebuild image + start
-./duckduckgo-mcp/stop.sh               # Stop container
-```
-
-Docker-based MCP server providing `search` and `fetch_content` tools. Rate limited (30 req/min search, 20 req/min fetch). Enabled in OpenCode config by default.
-
-### FLUX Schnell (Image Generation)
-
-```fish
-sudo bash flux-server/setup-flux.sh              # Install and configure
-sudo bash flux-server/setup-flux.sh --update     # Refresh deps (keeps model)
-./flux-server/run_flux_with_prompt.py            # Generate image with prompt
-```
-
-### Open WebUI
-
-```fish
-./open-webui/start.sh              # Start (checks llama-server is running)
-./open-webui/stop.sh               # Stop Open WebUI only
-./open-webui/stop.sh --all         # Stop Open WebUI + llama-server
-```
-
 ## Chat Templates
 
-All services now use Jinja chat templates (`--jinja --chat-template-file`) for consistent multimodal rendering. The shared template at `llama/chat_template.jinja` handles image/video counting and thinking token preservation. Deployed to `/opt/llama-mtp/chat_template.jinja` and `/opt/llama.cpp/chat_template.jinja` by `./scripts/reapply-services.sh`.
+All services use Jinja chat templates (`--jinja --chat-template-file`) for consistent multimodal rendering. The shared template at `config/chat_template.jinja` handles image/video counting and thinking token preservation. Deployed to `~/.config/rtx-testing/chat_template.jinja` by `switch-model.sh`.
 
 ## Benchmarking
 
@@ -159,7 +91,6 @@ All services now use Jinja chat templates (`--jinja --chat-template-file`) for c
 ./benchmarks/run-tool-bench.sh                    # Full 69-scenario benchmark on port 10500
 ./benchmarks/run-tool-bench.sh --short            # Quick 15-scenario benchmark
 ./benchmarks/run-tool-bench.sh --port 10503       # Test a different server port
-./benchmarks/run-tool-bench.sh --short --seed 123 # Quick run with different seed
 ```
 
 Uses `tool-eval-bench` against running llama-server. Results saved to `runs/` directory.
@@ -178,17 +109,8 @@ Template at `opencode/opencode.json.tlp` — copy to `~/.config/opencode/opencod
 | --- | --- | --- | --- |
 | `llama-nvfp4-mtp` | Qwen3.6-27B NVFP4-MTP GGUF | llama.cpp | **Daily driver**, 131K/262K, vision |
 | `llama-qwen` | Qwen3.6-27B Dense | llama.cpp | Q4_K_XL, 131K |
-| `llama-mtp` | Qwen3.6-35B-A3B MTP | llama.cpp | Q4_K_XL, 131K |
-| `llama-35b-mxfp4-mtp` | Qwen3.6-35B-A3B MXFP4-MTP | llama.cpp | Blackwell FP4, spec decode |
-| `llama-35b-nvfp4` | Qwen3.6-35B-A3B NVFP4 | llama.cpp | Blackwell FP4, no MTP |
-| `gemma4` | Gemma 4 31B Dense | llama.cpp | 131K |
-| `gemma4-a4b` | Gemma 4 26B A4B MoE | llama.cpp | 131K |
-| `e4b` | Gemma 4 E4B-it | llama.cpp | vision + thinking |
-| `vllm-nvfp4-mtp` | Qwen3.6-27B NVFP4-MTP | vLLM | modelopt, 131K |
-| `vllm-awq` | Qwen3.6-27B AWQ INT4 | vLLM | 131K |
-| `flux` | FLUX.1-schnell | ComfyUI | Image gen, port 10501 |
 
-Switch models: `opencode --model llama-nvfp4-mtp/qwen3.6-27b-nvfp4-mtp-gguf` or `opencode --model vllm-nvfp4-mtp/qwen3.6-27b-nvfp4-mtp`
+Switch models: `opencode --model llama-nvfp4-mtp/qwen3.6-27b-nvfp4-mtp-gguf`
 
 Context limit note: keep OpenCode context below full server capacity. The server hosts 131K, but advertising all of it lets OpenCode send very large prompts that spend most of their time in prompt evaluation.
 
@@ -214,7 +136,7 @@ Uses local model through free-claude-code proxy. Works in terminal and VS Code.
 
 ## Performance (Benchmarked)
 
-Benchmarked on RTX 5090, CUDA 13.2, Blackwell sm_120 (May 2026).
+Benchmarked on RTX 5090, CUDA 13.3, Blackwell sm_120 (June 2026).
 
 ### Best Result: Qwen3.6-27B NVFP4-MTP GGUF
 
@@ -230,9 +152,9 @@ Benchmarked on RTX 5090, CUDA 13.2, Blackwell sm_120 (May 2026).
 
 ### Performance Notes
 
-- **Token generation:** ~126 t/s (Qwen3.6-27B MTP), ~288 t/s (Qwen3.6-35B-A3B MoE — 2.1x faster despite more params)
-- **VRAM usage:** ~26 GB / 32 GB at 131K context with bf16 KV cache
-- **Power draw:** 561-576W under load, GPU temp 71-78°C
+- **Token generation:** ~195 t/s with MTP draft acceptance
+- **VRAM usage:** ~27 GB / 32 GB at 131K context with bf16 KV cache
+- **Power draw:** 475W (recommended limit), GPU temp 71-78°C
 
 Full benchmark results with all backends compared: [`benchmarks/results.md`](benchmarks/results.md)
 
@@ -292,77 +214,39 @@ Use `-ctk` and `-ctv` to control key/value cache precision. bf16 recommended for
 
 ```fish
 nvidia-smi
-fish_add_path /opt/cuda/bin
-nvcc --version    # Cuda compilation tools, release 13.2, V13.2.78
+nvcc --version    # Cuda compilation tools, release 13.3
 ```
 
-### 2. Build llama.cpp (MTP)
+### 2. Build llama.cpp (MTP) — User-Space
 
 ```fish
-sudo pacman -S --needed base-devel cmake git uv gcc14
+paru -S --needed base-devel cmake git uv gcc15 aria2
 
-# Unified MTP setup (recommended):
-sudo bash llama/setup-mtp.sh --model 27b
-
-# Or manual:
-git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /opt/llama-mtp
-cd /opt/llama-mtp
-# Graft MTP PR #22673 onto mainline
-
-cmake -B build \
-  -DGGML_CUDA=ON \
-  -DGGML_NATIVE=ON \
-  -DGGML_CUDA_FA=ON \
-  -DGGML_CUDA_FA_ALL_QUANTS=ON \
-  -DCMAKE_CUDA_ARCHITECTURES=120 \
-  -DCMAKE_CUDA_COMPILER=/opt/cuda/bin/nvcc \
-  -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-14
-
-cmake --build build -j$(nproc)
-llama-server --version    # Must show: loaded CUDA backend
+# User-space setup (recommended):
+bash llama/setup-mtp.sh --model nvfp4
 ```
 
-### 3. Download Model
+### 3. Start Server (User-Space, MTP, 131K)
 
 ```fish
-# NVFP4-MTP (daily driver, 19.7 GB):
-hf download nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF \
-  qwen3.6-27b-text-nvfp4-mtp.gguf \
-  --local-dir /opt/models-mtp/qwen3.6-27b-nvfp4-mtp/
-
-# Or Q4_K_XL MTP (16.4 GB):
-hf download unsloth/Qwen3.6-27B-MTP-GGUF \
-  Qwen3.6-27B-UD-Q4_K_XL.gguf \
-  mmproj-F16.gguf \
-  --local-dir /opt/models-mtp/qwen3.6-27b-mtp/
-```
-
-### 4. Start Server (MTP, 131K)
-
-```fish
-/opt/llama-mtp/build/bin/llama-server \
-  -m /opt/models-mtp/qwen3.6-27b-mtp/Qwen3.6-27B-UD-Q4_K_XL.gguf \
-  --mmproj /opt/models-mtp/qwen3.6-27b-mtp/mmproj-F16.gguf \
-  -c 131072 \
-  -n 32768 \
-  -fa on -ngl 99 -np 1 \
-  -t 16 -tb 16 \
-  -ctk bf16 -ctv bf16 -ctkd q4_1 -ctvd q4_1 \
-  --no-warmup \
-  --spec-type draft-mtp --spec-draft-n-max 2 \
-  --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 \
-  --presence-penalty 1.5 --repeat-penalty 1.0 \
-  --jinja \
-  --chat-template-file /opt/llama-mtp/chat_template.jinja \
-  --host 0.0.0.0 --port 10500
+./scripts/switch-model.sh nvfp4
 ```
 
 bf16 KV cache prevents attention collapse over long contexts. Draft cache (`-ctkd/-ctvd`) can stay q4_1 since it's discarded per step.
 
-### 5. Systemd Service
+### User-Space Systemd Service
+
+The new `switch-model.sh` uses `systemd-run --user` for background management (no sudo):
 
 ```fish
-sudo ./scripts/reapply-services.sh    # Deploys all services + chat templates
+# Status
+./scripts/switch-model.sh status
+
+# Logs
+journalctl --user -u rtx-qwen3-6-27b-nvfp4-mtp-131k -f
+
+# Stop
+systemctl --user stop rtx-qwen3-6-27b-nvfp4-mtp-131k
 ```
 
 Requires `nvidia-persistenced` to prevent GPU memory leaks:
@@ -426,9 +310,10 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 | `nvcc: command not found` | Not in PATH | `fish_add_path /opt/cuda/bin` |
 | `Unsupported cache type: 7` | `-ctk` expects type name | Use `-ctk q4_1` not `-ctk 7` |
 | Turbo 5-10x slow past 4K | `q4_0` CUDA bug | Use `q4_1` instead |
-| CUDA 13.2 gibberish output | IQ4_XS extreme quant bug | Use UD-Q4_K_XL (unaffected) |
+| CUDA 13.3 gibberish output | IQ4_XS extreme quant bug | Use UD-Q4_K_XL (unaffected) |
 | Ollama unsupported | Separate mmproj file | Ollama doesn't support mmproj |
 | opencode-mem sharp broken | Bun skips lifecycle scripts | Use `fix-sharp.sh` + local loader |
+| `LD_LIBRARY_PATH` silent CPU fallback | Symlink path resolution | Fixed in `switch-model.sh` (readlink -f) |
 
 ## Links
 
@@ -455,41 +340,52 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 
 ### Configuration Layer (new)
 
-The `config/` directory provides a declarative model registry, replacing implicit knowledge encoded in docker-compose:
+The `config/` directory provides a declarative model registry:
 
 ```
 config/
-├── models.yaml            # Model definitions (path, quant, context, service mapping)
-├── backends.yaml          # Backend runtime config (llama.cpp, vLLM, etc.)
-├── profiles.yaml          # Service groupings / compose profiles
+├── models.yaml              # Model definitions (path, quant, context, args)
+├── backends.yaml            # Backend runtime config (llama.cpp, vLLM, etc.)
+├── profiles.yaml            # Service groupings / compose profiles
 └── chat-template-version.json  # Template versioning metadata
 ```
 
-**Model Registry:** Each model in `config/models.yaml` declares its backend, quantization, context size, KV cache types, speculative decoding settings, and the corresponding docker-compose service. This enables tooling to query "what models exist" without parsing compose files.
+**Model Registry:** Each model in `config/models.yaml` declares its display name, aliases, HuggingFace repo, server arguments, and context safety tier. The switcher reads this to resolve model names without hardcoded knowledge.
 
-### Scripts (new)
+### Scripts (updated)
 
 ```
 scripts/
-├── switch-model.sh        # Registry-aware model switcher (replaces docker/switch.sh)
-├── diagnose.sh            # Runtime diagnostics: GPU, driver, services, template hash
-├── build-manifest.sh      # Reproducibility package: git, system, GPU, template metadata
-└── mtp-bench.py           # MTP-specific benchmarking (existing)
+├── switch-model.sh          # User-space model switcher (systemd user units, no sudo)
+├── diagnose.sh              # Runtime diagnostics: GPU, driver, services, template hash
+├── build-manifest.sh        # Reproducibility package: git, system, GPU, template metadata
+└── mtp-bench.py             # MTP-specific benchmarking (existing)
 ```
 
-**switch-model.sh:** Resolves model keys from `config/models.yaml`, warns on experimental context tiers, starts the correct compose service. Drop-in replacement for `docker/switch.sh`.
+**switch-model.sh:** Resolves model keys from `config/models.yaml`, warns on experimental context tiers, starts the correct user-space systemd unit. Handles legacy system service cleanup, GPU memory waiting, and stray process killing during model switches.
 
 **diagnose.sh:** Outputs GPU model, driver version, CUDA version, running services, active model, context size, KV cache mode, VRAM usage, and chat template hash. Supports `--json` for CI integration.
 
-**build-manifest.sh:** Generates `build-manifest.json` with git commit, driver/CUDA versions, kernel, template SHA256, and registry stats — the reproducibility package for benchmark runs.
+### User-Space Build Layout
 
-### Benchmarking (improved)
+```
+~/.local/share/rtx-testing/
+├── llama.cpp-nvfp4/         # llama.cpp build (git clone + MTP PR merge)
+│   ├── build/bin/llama-server  # Main binary
+│   ├── build/bin/libggml-*.so  # Shared libraries (CUDA, CPU, base)
+│   └── chat_template.jinja     # Copied from repo
+├── models/                  # Downloaded model files
+│   └── qwen3.6-27b-nvfp4-mtp/
+│       ├── qwen3.6-27b-text-nvfp4-mtp.gguf  (19.7 GB)
+│       └── mmproj-F16.gguf                  (885 MB)
+├── .venv-hf/                # HuggingFace CLI venv (isolated, user-space)
+└── dgemma-gguf/             # Other tooling (unrelated)
 
-`benchmarks/benchmark-improved.py` adds variance reporting to the existing benchmark suite:
-- Multiple runs per prompt (default 5, configurable via `--runs`)
-- Median, p95, standard deviation for gen t/s and TTFT
-- Cold / warm cache mode distinction (`--mode cold|warm|all`)
-- JSON output to `runs/` directory for CI tracking
+~/.local/bin/llama-server → ~/.local/share/rtx-testing/llama.cpp-nvfp4/build/bin/llama-server
+
+~/.config/rtx-testing/
+└── chat_template.jinja      # Active chat template (copied by switch-model.sh)
+```
 
 ### Context Safety Tiers
 
@@ -498,7 +394,7 @@ Models with context sizes outside the stable range are flagged in `config/models
 | Tier | Range | Models |
 | --- | --- | --- |
 | **Stable** | 8K – 131K | Default for all models |
-| **Experimental** | 262K | NVFP4-MTP-262K, vLLM turbo variants |
+| **Experimental** | 262K | NVFP4-MTP-262K |
 | **Research** | 1M+ | Not currently deployed |
 
 `switch-model.sh` warns when starting experimental-tier models.
@@ -510,45 +406,35 @@ Models with context sizes outside the stable range are flagged in `config/models
 │   ├── models.yaml               # Model registry
 │   ├── backends.yaml             # Backend definitions
 │   ├── profiles.yaml             # Service groupings
+│   ├── chat_template.jinja       # Jinja chat template (source of truth)
 │   └── chat-template-version.json
 ├── llama/                        # llama.cpp server setup
-│   ├── setup-mtp.sh              # Unified MTP setup (mainline + PR #22673) ⭐
-│   │                             #   --model 27b|35b|nvfp4
-│   ├── chat_template.jinja       # Jinja chat template (from froggeric/Qwen-Fixed-Chat-Templates)
-│   ├── setup-qwen36-27b-mtp.sh   # Qwen3.6-27B Unsloth MTP (DEPRECATED, use setup-mtp.sh)
+│   ├── setup-mtp.sh              # Unified user-space MTP setup ⭐
+│   │                             #   --model nvfp4 [--update]
+│   ├── chat_template.jinja       # Jinja chat template (upstream copy)
+│   ├── setup-qwen36-27b-mtp.sh   # Qwen3.6-27B Unsloth MTP (DEPRECATED)
 │   ├── setup-qwen36-35b-mtp.sh   # Qwen3.6-35B-A3B Unsloth MTP (DEPRECATED)
 │   ├── setup-qwen36-mtp.sh       # Old MTP setup (DEPRECATED)
-│   ├── setup-unsloth-studio.sh   # Unsloth Studio (port 8888)
 │   ├── setup-gemma4.sh           # Gemma 4 31B
 │   ├── setup-gemma4-mtp.sh       # Gemma 4 31B MTP (AtomicBot fork, separate build)
 │   ├── setup-26b-a4b.sh          # Gemma 4 26B-A4B MoE
 │   ├── setup-e4b.sh              # Qwen3.6-E4B
-│   ├── setup-qwen.sh             # Qwen3.6-27B non-MTP (legacy)
-│   ├── setup-router.sh           # Router mode setup (experimental)
-│   ├── kill.fish                 # Emergency kill script
-│   └── services/                 # systemd units (llama-server-*.service)
+│   └── services/                 # Legacy systemd units (deprecated)
 ├── scripts/                      # Operational tooling
-│   ├── switch-model.sh           # Registry-aware model switcher
+│   ├── switch-model.sh           # User-space model switcher ⭐ (no sudo)
 │   ├── diagnose.sh               # Runtime diagnostics
 │   ├── build-manifest.sh         # Reproducibility manifest
 │   ├── service-switcher.sh       # Legacy switcher (deprecated)
-│   ├── reapply-services.sh       # Redeploy all systemd units + chat templates
 │   └── nvfp4_quantize.py         # NVFP4 quantization pipeline
 ├── benchmarks/                   # Benchmark runners + results
-│   ├── benchmark-improved.py     # Variance-aware benchmark (new)
+│   ├── benchmark-improved.py     # Variance-aware benchmark
 │   ├── benchmark.py              # General benchmark
 │   ├── run-tool-bench.sh         # Tool-eval benchmark runner
-│   ├── results.md                # Full benchmark results summary
-│   └── nvfp4-mtp-llama-vs-vllm.md  # Head-to-head comparison
-├── duckduckgo-mcp/               # DuckDuckGo MCP server
-│   ├── start.sh / stop.sh        # Container management
-│   └── docker-compose.yml        # Container config
+│   └── results.md                # Full benchmark results summary
 ├── opencode/                     # OpenCode config templates
 ├── opencode-mem/                 # Persistent memory plugin for OpenCode
 ├── docs/                         # Documentation
-├── system/                       # Hardware monitoring configs
-├── browser-harness -> ...        # Symlink to browser-harness repo
-└── opencode/                     # OpenCode config templates
+└── system/                       # Hardware monitoring configs
 ```
 
 ---
