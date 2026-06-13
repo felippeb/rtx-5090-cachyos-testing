@@ -291,23 +291,49 @@ set_power_limit() {
 }
 
 ensure_config() {
-    if [[ ! -f "$RTX_CONFIG/chat_template.jinja" ]]; then
-        mkdir -p "$RTX_CONFIG"
-        local src=""
-        for candidate in "$CONFIG_DIR/chat_template.jinja" \
-                         "$SCRIPT_DIR/llama/chat_template.jinja" \
-                         "$MODELS_DIR/chat_template.jinja"; do
-            if [[ -f "$candidate" ]]; then
-                src="$candidate"
-                break
-            fi
-        done
-        if [[ -n "$src" ]]; then
-            cp "$src" "$RTX_CONFIG/chat_template.jinja"
-            ok "Installed chat template from $src"
-        else
-            warn "No chat_template.jinja found — server will use model default."
+    mkdir -p "$RTX_CONFIG"
+    local dest="$RTX_CONFIG/chat_template.jinja"
+    local expected_hash=""
+
+    # Read expected hash from version metadata (if available)
+    if [[ -f "$CONFIG_DIR/chat-template-version.json" ]]; then
+        expected_hash=$(grep '"sha256"' "$CONFIG_DIR/chat-template-version.json" 2>/dev/null | grep -oP '[0-9a-f]{64}' || true)
+    fi
+
+    local src=""
+    for candidate in "$CONFIG_DIR/chat_template.jinja" \
+                     "$SCRIPT_DIR/llama/chat_template.jinja" \
+                     "$MODELS_DIR/chat_template.jinja"; do
+        if [[ -f "$candidate" ]]; then
+            src="$candidate"
+            break
         fi
+    done
+
+    if [[ -z "$src" ]]; then
+        warn "No chat_template.jinja found — server will use model default."
+        return
+    fi
+
+    local need_copy=false
+    if [[ ! -f "$dest" ]]; then
+        need_copy=true
+    elif [[ -n "$expected_hash" ]]; then
+        local actual_hash
+        actual_hash=$(sha256sum "$dest" | cut -d' ' -f1)
+        if [[ "$actual_hash" != "$expected_hash" ]]; then
+            need_copy=true
+        fi
+    else
+        # Fallback: compare content directly
+        if ! cmp -s "$src" "$dest"; then
+            need_copy=true
+        fi
+    fi
+
+    if [[ "$need_copy" == true ]]; then
+        cp "$src" "$dest"
+        ok "Updated chat template from $src"
     fi
 }
 

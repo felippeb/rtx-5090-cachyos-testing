@@ -242,12 +242,20 @@ section_build() {
     ln -sf "$LLAMA_DIR/build/bin/llama-server" "$LLAMA_BIN_LINK"
     ok "Symlinked: $LLAMA_BIN_LINK -> $binary"
 
-    # Copy chat template
+    # Copy chat template from config/ (source of truth) to build dir
     local SCRIPT_DIR
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    if [[ -f "$SCRIPT_DIR/chat_template.jinja" ]]; then
-        cp "$SCRIPT_DIR/chat_template.jinja" "$LLAMA_DIR/chat_template.jinja"
+    SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+    local TEMPLATE_SRC="$SCRIPT_DIR/config/chat_template.jinja"
+    if [[ -f "$TEMPLATE_SRC" ]]; then
+        cp "$TEMPLATE_SRC" "$LLAMA_DIR/chat_template.jinja"
         ok "Copied chat_template.jinja to $LLAMA_DIR/"
+    else
+        # Fallback: copy from llama/ (legacy location)
+        local LEGACY_SRC="$SCRIPT_DIR/llama/chat_template.jinja"
+        if [[ -f "$LEGACY_SRC" ]]; then
+            cp "$LEGACY_SRC" "$LLAMA_DIR/chat_template.jinja"
+            ok "Copied chat_template.jinja (legacy fallback) to $LLAMA_DIR/"
+        fi
     fi
 
     echo ""
