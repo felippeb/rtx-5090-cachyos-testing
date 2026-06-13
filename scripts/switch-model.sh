@@ -76,10 +76,17 @@ do_list() {
 do_status() {
     echo -e "${CYAN}Running llama-server instances:${NC}"
     local running=false
+
     for unit in $(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}'); do
         echo "  ● $unit ($(systemctl --user is-active "$unit" 2>/dev/null || echo inactive))"
         running=true
     done
+
+    for unit in $(systemctl list-units --no-legend 'llama-server-*' 2>/dev/null | awk '{print $1}'); do
+        echo "  ● $unit ($(systemctl is-active "$unit" 2>/dev/null || echo inactive)) [legacy]"
+        running=true
+    done
+
     $running || echo "  (none)"
     echo ""
     info "GPU:"
@@ -186,20 +193,69 @@ ensure_model_downloaded() {
 }
 
 stop_existing() {
+    local port="${1:-10500}"
+
+    # Stop user-space rtx-* units (new-style)
     local active_units
     active_units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
     if [[ -n "$active_units" ]]; then
-        info "Stopping running model(s): $active_units"
+        info "Stopping user model(s): $active_units"
         for unit in $active_units; do
             systemctl --user stop "$unit" 2>/dev/null || true
         done
     fi
 
+    # Stop old system-level llama-server-* units (legacy)
+    local system_units
+    system_units=$(systemctl list-units --no-legend 'llama-server-*' 2>/dev/null | awk '{print $1}' || true)
+    if [[ -n "$system_units" ]]; then
+        info "Stopping legacy system model(s): $system_units"
+        for unit in $system_units; do
+            sudo systemctl stop "${unit%.service}" 2>/dev/null || true
+        done
+    fi
+
+    # Kill any stray llama-server processes holding the port
+    local pids
+    pids=$(lsof -ti :"$port" 2>/dev/null || true)
+    if [[ -n "$pids" ]]; then
+        info "Killing stray process(es) on port $port: $pids"
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+    fi
+
+    # Wait for port to free
     local retries=0
-    while lsof -i :10500 >/dev/null 2>&1 && [[ $retries -lt 10 ]]; do
+    while lsof -i :"$port" >/dev/null 2>&1 && [[ $retries -lt 20 ]]; do
         sleep 0.5
         retries=$((retries + 1))
     done
+
+    # Wait for GPU memory to free (target: 20GB, 60s timeout)
+    if command -v nvidia-smi &>/dev/null; then
+        local MIN_FREE=20000
+        local TIMEOUT=60
+        local ELAPSED=0
+        local FREE_MIB=0
+
+        info "Waiting for GPU memory to free (target: ${MIN_FREE} MiB)..."
+        while [[ $ELAPSED -lt $TIMEOUT ]]; do
+            FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ') || true
+            if [[ -n "$FREE_MIB" ]] && (( FREE_MIB >= MIN_FREE )); then
+                ok "GPU free: ${FREE_MIB} MiB — proceeding."
+                break
+            fi
+            if (( ELAPSED % 20 == 0 && ELAPSED > 0 )); then
+                info "  ... ${FREE_MIB} MiB free, waiting... (${ELAPSED}s/${TIMEOUT}s)"
+            fi
+            sleep 1
+            ELAPSED=$((ELAPSED + 1))
+        done
+
+        if (( FREE_MIB < MIN_FREE )); then
+            warn "GPU memory not fully freed after ${TIMEOUT}s (${FREE_MIB} MiB free, needed ${MIN_FREE} MiB)."
+            warn "Proceeding anyway — model may fall back to CPU."
+        fi
+    fi
 }
 
 ensure_binary() {
@@ -273,6 +329,7 @@ do_switch() {
 
     info "Starting $unit_name via systemd..."
     eval "args=($server_args)"
+    local LIB_PATH="$(dirname "$LLAMA_BIN")"
     systemd-run --user --unit="$unit_name" \
         --property=Restart=on-failure \
         --property=RestartSec=5 \
@@ -280,6 +337,7 @@ do_switch() {
         --working-directory="$HOME" \
         --setenv=CUDA_VISIBLE_DEVICES=0 \
         --setenv=GGML_CUDA_ENABLE_PEER_COPY=1 \
+        --setenv=LD_LIBRARY_PATH="$LIB_PATH" \
         --collect \
         "$LLAMA_BIN" "${args[@]}"
 
