@@ -31,7 +31,7 @@ models:
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
       --presence-penalty 1.5 --repeat-penalty 1.0
       --jinja --chat-template-file {config_dir}/chat_template.jinja
-      --chat-template-kwargs '{"enable_thinking": false}'
+      --reasoning off
       --host 0.0.0.0 --port 10500
 
   qwen3.6-27b-nvfp4-mtp-262k:
@@ -53,5 +53,5 @@ models:
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
       --presence-penalty 1.5 --repeat-penalty 1.0
       --jinja --chat-template-file {config_dir}/chat_template.jinja
-      --chat-template-kwargs '{"enable_thinking": false}'
+      --reasoning off
       --host 0.0.0.0 --port 10500
