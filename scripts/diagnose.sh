@@ -42,13 +42,13 @@ fi
 # ─── Driver / CUDA ────────────────────────────────────────────────
 section "Driver & CUDA"
 driver_version=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader,nounits 2>/dev/null || echo "N/A")
-cuda_version=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9.]+' || echo "N/A (host)")
+cuda_driver=$(nvidia-smi --query-gpu=cuda_version --format=csv,noheader,nounits 2>/dev/null || echo "N/A")
 
 if $as_json; then
-    driver_json="{\"driver_version\":\"$driver_version\",\"cuda_version\":\"$cuda_version\"}"
+    driver_json="{\"driver_version\":\"$driver_version\",\"cuda_version\":\"$cuda_driver\"}"
 else
     echo "  Driver:     $driver_version"
-    echo "  CUDA (host): $cuda_version"
+    echo "  CUDA (driver): $cuda_driver"
 fi
 
 # ─── OS / Kernel ──────────────────────────────────────────────────
@@ -67,27 +67,34 @@ else
     echo "  Python:     $python_ver"
 fi
 
-# ─── Docker Services ──────────────────────────────────────────────
-section "Docker Services"
-running=$($SCRIPT_DIR/docker/../docker compose --project-name rtx-inference ps --format json 2>/dev/null | python3 -c "
-import json, sys
-try:
-    containers = [json.loads(l) for l in sys.stdin if l.strip()]
-    for c in containers:
-        name = c.get('Service', c.get('Name', '?'))
-        state = c.get('State', '?')
-        print(f'  {name}: {state}')
-except:
-    print('  (unable to parse)')
-" 2>/dev/null || echo "  (docker compose unavailable)")
-
-if $as_json; then
-    services_json="[]"
+# ─── Active systemd Units ─────────────────────────────────────────
+section "Systemd Services"
+units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
+if [[ -n "$units" ]]; then
+    if $as_json; then
+        unit_list="["
+        first=true
+        for u in $units; do
+            state=$(systemctl --user is-active "$u" 2>/dev/null || echo "inactive")
+            $first && first=false || unit_list+=","
+            unit_list+="\"$u ($state)\""
+        done
+        unit_list+="]"
+    else
+        for u in $units; do
+            state=$(systemctl --user is-active "$u" 2>/dev/null || echo "inactive")
+            echo "  ● $u ($state)"
+        done
+    fi
 else
-    echo "$running"
+    if $as_json; then
+        unit_list="[]"
+    else
+        echo "  (none running)"
+    fi
 fi
 
-# ─── Active Model (from registry) ────────────────────────────────
+# ─── Model Registry ──────────────────────────────────────────────
 section "Model Registry"
 model_count=$(grep -c '^  [a-z]' "$CONFIG_DIR/models.yaml" 2>/dev/null || echo "0")
 if $as_json; then
@@ -98,7 +105,7 @@ fi
 
 # ─── Chat Template Version ────────────────────────────────────────
 section "Chat Template"
-template_file="$SCRIPT_DIR/docker/chat_template.jinja"
+template_file="$CONFIG_DIR/chat_template.jinja"
 if [[ -f "$template_file" ]]; then
     template_hash=$(sha256sum "$template_file" | cut -c1-16)
     template_lines=$(wc -l < "$template_file")
@@ -117,13 +124,19 @@ else
     fi
 fi
 
-# ─── llama.cpp version (from running container or build) ──────────
+# ─── llama-server binary ──────────────────────────────────────────
 section "llama.cpp"
-llama_version=$(docker run --rm --entrypoint "" ghcr.io/ggml-org/llama.cpp:latest llama-server --version 2>/dev/null | head -1 || echo "N/A (check Dockerfile)")
+LLAMA_BIN="${LLAMA_BIN:-$HOME/.local/bin/llama-server}"
+if [[ -x "$LLAMA_BIN" ]]; then
+    llama_version=$("$LLAMA_BIN" --version 2>&1 | head -1 || echo "N/A")
+else
+    llama_version="not installed at $LLAMA_BIN"
+fi
 if $as_json; then
-    llama_json="{\"version\":\"$llama_version\"}"
+    llama_json="{\"version\":\"$llama_version\",\"binary\":\"$LLAMA_BIN\"}"
 else
     echo "  Version:    $llama_version"
+    echo "  Binary:     $LLAMA_BIN"
 fi
 
 # ─── Output JSON or exit ──────────────────────────────────────────
@@ -134,8 +147,10 @@ data = {
     'gpu': $gpu_json,
     'driver': $driver_json,
     'system': $sys_json,
+    'services': $unit_list,
     'registry': $registry_json,
     'chat_template': $template_json,
+    'llama_cpp': $llama_json,
 }
 print(json.dumps(data, indent=2))
 "

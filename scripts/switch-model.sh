@@ -1,168 +1,362 @@
 #!/usr/bin/env bash
-# Parameterized model switcher — reads config/models.yaml to resolve services.
-# Usage: ./switch-model.sh <model-key> [options]
-#        ./switch-model.sh status
-#        ./switch-model.sh list
-#
-# This script does NOT kill running models unless you explicitly switch.
+# Local model switcher — reads config/models.yaml, manages llama-server via systemd user units.
+# Usage: ./switch-model.sh <model-key|status|list|stop|logs>
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$SCRIPT_DIR/config"
-COMPOSE_DIR="$SCRIPT_DIR/docker"
-COMPOSE_FILE="$COMPOSE_DIR/docker-compose.yml"
-COMPOSE="docker compose --project-name rtx-inference -f $COMPOSE_FILE"
 MODELS_YAML="$CONFIG_DIR/models.yaml"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+LLAMA_BIN="${LLAMA_BIN:-$HOME/.local/bin/llama-server}"
+MODELS_DIR="${RTX_MODELS:-$HOME/.local/share/rtx-testing/models}"
+RTX_CONFIG="${RTX_CONFIG:-$HOME/.config/rtx-testing}"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 fail()  { echo -e "${RED}[FAIL]${NC} $*"; exit 1; }
 
-# ─── Parse a YAML value (simple, no nested structures) ──────────
 yaml_get() {
     local file="$1" key="$2" section="$3"
-    # Extract the section block, then find the key
-    awk -v section="$section" -v key="$key" '
-        $0 ~ "^  " section ":" { in_section=1; next }
-        in_section && /^    [a-z]/ {
-            if ($0 ~ "^    " key ":") {
-                sub(/^    [^:]+: */, "")
-                gsub(/"/, "")
-                print
-                exit
-            }
+    awk -v section="  $section:" -v key="    $key:" '
+        $0 ~ section { in_section=1; next }
+        in_section && $0 ~ key {
+            sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+            gsub(/"/, "")
+            gsub(/[[:space:]]+$/, "")
+            print
+            exit
         }
         in_section && /^  [a-z]/ { in_section=0 }
     ' "$file"
 }
 
-# ─── List all models from registry ──────────────────────────────
+yaml_get_block() {
+    local file="$1" key="$2" section="$3"
+    awk -v section="  $section:" -v key="    $key:" '
+    $0 ~ section { in_section=1; next }
+    in_section {
+        if ($0 ~ key) {
+            sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+            if ($0 ~ /^[|>]/) { block=1; next }
+            if (block) {
+                if (/^      /) { sub(/^      /, ""); print }
+                else { exit }
+            } else { print; exit }
+        }
+        if (block) {
+            if (/^      /) { sub(/^      /, ""); print }
+            else { exit }
+        }
+        if (/^  [a-z]/) { exit }
+    }
+    ' "$file"
+}
+
+sanitize_unit_name() {
+    echo "$1" | sed 's/[^a-zA-Z0-9-]/-/g'
+}
+
 do_list() {
-    echo -e "${BOLD}${CYAN}Registered Models${NC}"
-    echo -e "${NC}$(printf '%.0s-' {1..70})${NC}"
-    printf "  ${BOLD}%-40s${NC} %-10s %s\n" "MODEL KEY" "BACKEND" "SERVICE"
-    echo -e "$(printf '%.0s-' {1..70})"
-
-    # Parse models.yaml for display
-    local current_section=""
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[a-zA-Z] && ! "$line" =~ ^# && "$line" =~ :$ ]]; then
-            current_section="${line%%:*}"
-        elif [[ "$line" =~ ^[[:space:]]+compose_service: ]]; then
-            local service
-            service=$(echo "$line" | sed 's/.*compose_service: *//' | tr -d '"')
-            local backend
-            backend=$(yaml_get "$MODELS_YAML" "backend" "$current_section")
-            printf "  %-42s %-10s %s\n" "$current_section" "$backend" "$service"
-        fi
-    done < "$MODELS_YAML"
-
-    echo ""
-    info "Infrastructure services:"
-    for svc in router swap webui; do
+    echo -e "${CYAN}Registered Models${NC}"
+    echo "──────────────────────────────────────────────────────"
+    printf "  %-42s %s\n" "MODEL KEY" "DISPLAY NAME"
+    echo "──────────────────────────────────────────────────────"
+    awk '/^  [a-zA-Z].*:/ { gsub(/^  /, ""); gsub(/:$/, ""); print }' "$MODELS_YAML" | while IFS= read -r key; do
         local display
-        display=$(yaml_get "$MODELS_YAML" "display_name" "$svc")
-        printf "  %-42s %s\n" "$svc" "$display"
+        display=$(yaml_get "$MODELS_YAML" "display_name" "$key" 2>/dev/null)
+        [[ -n "$display" ]] && printf "  %-42s %s\n" "$key" "$display"
     done
     echo ""
     info "Use: $0 <model-key> to start a model"
     exit 0
 }
 
-# ─── Show status ─────────────────────────────────────────────────
 do_status() {
-    info "Running containers:"
-    $COMPOSE ps 2>/dev/null || warn "No containers running"
+    echo -e "${CYAN}Running llama-server instances:${NC}"
+    local running=false
+    for unit in $(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}'); do
+        echo "  ● $unit ($(systemctl --user is-active "$unit" 2>/dev/null || echo inactive))"
+        running=true
+    done
+    $running || echo "  (none)"
     echo ""
-    info "GPU status:"
+    info "GPU:"
     nvidia-smi --query-gpu=name,memory.used,memory.total,power.draw,temperature.gpu \
         --format=csv,noheader 2>/dev/null || warn "nvidia-smi unavailable"
     exit 0
 }
 
-# ─── Resolve model key to compose service ────────────────────────
-resolve_service() {
-    local model_key="$1"
-    yaml_get "$MODELS_YAML" "compose_service" "$model_key"
+resolve_model_key() {
+    local target="$1"
+
+    local alias_match
+    alias_match=$(awk -v t="$target" '
+        /^  [a-zA-Z].*:/ { gsub(/^  /, ""); gsub(/:$/, ""); current=$0 }
+        current != "" && /    aliases:/ {
+            gsub(/.*aliases:[[:space:]]*\[/, "")
+            gsub(/\].*/, "")
+            n = split($0, arr, ",")
+            for (i=1; i<=n; i++) {
+                gsub(/[[:space:]]+/, "", arr[i])
+                gsub(/"/, "", arr[i])
+                if (arr[i] == t) { print current; exit }
+            }
+        }
+    ' "$MODELS_YAML" 2>/dev/null)
+    if [[ -n "$alias_match" ]]; then
+        echo "$alias_match"
+        return
+    fi
+
+    local exact
+    exact=$(grep "^  ${target}:" "$MODELS_YAML" 2>/dev/null && echo "$target")
+    if [[ -n "$exact" ]]; then
+        echo "$exact"
+        return
+    fi
+
+    local matches
+    matches=$(grep -E "^  [a-zA-Z].*:" "$MODELS_YAML" | grep -i "$target" | head -5)
+    if [[ -z "$matches" ]]; then
+        return
+    fi
+    local count
+    count=$(echo "$matches" | wc -l)
+    if [[ "$count" -eq 1 ]]; then
+        echo "$matches" | sed 's/^  //; s/:$//'
+        return
+    fi
+    echo "$matches" | sed 's/^  //; s/:$//' | awk '{ print length, $0 }' | sort -n | head -1 | cut -d' ' -f2-
 }
 
-# ─── Check context safety tier ───────────────────────────────────
 check_safety_tier() {
     local model_key="$1"
     local tier
     tier=$(yaml_get "$MODELS_YAML" "context_safety_tier" "$model_key")
     if [[ "$tier" == "experimental" ]]; then
         warn "Context size is EXPERIMENTAL — stability not guaranteed."
-        warn "Expected issues: higher VRAM usage, possible OOM at long contexts."
     fi
 }
 
-# ─── Switch model ────────────────────────────────────────────────
+ensure_model_downloaded() {
+    local resolved_key="$1"
+
+    local hf_repo
+    hf_repo=$(yaml_get "$MODELS_YAML" "hf_repo" "$resolved_key")
+    if [[ -z "$hf_repo" || "$hf_repo" == "null" ]]; then
+        return 0
+    fi
+
+    local filename model_dir_sub
+    filename=$(yaml_get "$MODELS_YAML" "filename" "$resolved_key")
+    model_dir_sub=$(yaml_get "$MODELS_YAML" "model_dir" "$resolved_key")
+    [[ -z "$model_dir_sub" ]] && model_dir_sub="$resolved_key"
+
+    local model_dir="$MODELS_DIR/$model_dir_sub"
+    local model_file="$model_dir/$filename"
+
+    if [[ -n "$filename" && ! -f "$model_file" ]]; then
+        info "Downloading $filename from $hf_repo..."
+        mkdir -p "$model_dir"
+        HF_XET_HIGH_PERFORMANCE=1 huggingface-cli download "$hf_repo" "$filename" \
+            --local-dir "$model_dir" ${HF_TOKEN:+--token "$HF_TOKEN"}
+        ok "Downloaded $filename"
+    elif [[ -n "$filename" ]]; then
+        ok "Model exists: $model_file"
+    fi
+
+    local mmproj_filename
+    mmproj_filename=$(yaml_get "$MODELS_YAML" "mmproj_filename" "$resolved_key")
+    if [[ -n "$mmproj_filename" ]]; then
+        local mmproj_repo
+        mmproj_repo=$(yaml_get "$MODELS_YAML" "mmproj_hf_repo" "$resolved_key")
+        [[ -z "$mmproj_repo" ]] && mmproj_repo="$hf_repo"
+        local mmproj_file="$model_dir/$mmproj_filename"
+        if [[ ! -f "$mmproj_file" ]]; then
+            info "Downloading $mmproj_filename from $mmproj_repo..."
+            HF_XET_HIGH_PERFORMANCE=1 huggingface-cli download "$mmproj_repo" "$mmproj_filename" \
+                --local-dir "$model_dir" ${HF_TOKEN:+--token "$HF_TOKEN"}
+            ok "Downloaded $mmproj_filename"
+        else
+            ok "mmproj exists: $mmproj_filename"
+        fi
+    fi
+}
+
+stop_existing() {
+    local active_units
+    active_units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
+    if [[ -n "$active_units" ]]; then
+        info "Stopping running model(s): $active_units"
+        for unit in $active_units; do
+            systemctl --user stop "$unit" 2>/dev/null || true
+        done
+    fi
+
+    local retries=0
+    while lsof -i :10500 >/dev/null 2>&1 && [[ $retries -lt 10 ]]; do
+        sleep 0.5
+        retries=$((retries + 1))
+    done
+}
+
+ensure_binary() {
+    if [[ ! -x "$LLAMA_BIN" ]]; then
+        fail "llama-server not found at $LLAMA_BIN. Build or install it first."
+    fi
+}
+
+check_power_limit() {
+    local current_target=475
+    local current
+    current=$(nvidia-smi --query-gpu=power.limit --format=csv,noheader 2>/dev/null | head -1 | cut -d. -f1 || echo "")
+    if [[ -n "$current" && "$current" -ne "$current_target" ]]; then
+        warn "GPU power limit is ${current}W — expected ${current_target}W for stable inference."
+        warn "Set with: sudo nvidia-smi -pl ${current_target}"
+    fi
+}
+
+set_power_limit() {
+    local target="${1:-475}"
+    if nvidia-smi -pl "$target" 2>/dev/null; then
+        ok "GPU power limit set to ${target}W"
+    else
+        fail "Cannot set power limit (need sudo). Run: sudo nvidia-smi -pl $target"
+    fi
+}
+
+ensure_config() {
+    if [[ ! -f "$RTX_CONFIG/chat_template.jinja" ]]; then
+        mkdir -p "$RTX_CONFIG"
+        if [[ -f "$CONFIG_DIR/chat_template.jinja" ]]; then
+            cp "$CONFIG_DIR/chat_template.jinja" "$RTX_CONFIG/chat_template.jinja"
+        elif [[ -f "$MODELS_DIR/chat_template.jinja" ]]; then
+            cp "$MODELS_DIR/chat_template.jinja" "$RTX_CONFIG/chat_template.jinja"
+        fi
+    fi
+}
+
 do_switch() {
     local target="$1"
-    local stop_first="${2:-true}"
 
-    # Resolve service name
-    local service_name
-    service_name=$(resolve_service "$target")
-
-    if [[ -z "$service_name" ]]; then
+    local resolved_key
+    resolved_key=$(resolve_model_key "$target")
+    if [[ -z "$resolved_key" ]]; then
         fail "Model '$target' not found in registry. Run: $0 list"
     fi
 
-    # Safety check
-    check_safety_tier "$target"
+    ensure_binary
+    ensure_config
+    ensure_model_downloaded "$resolved_key"
+    check_safety_tier "$resolved_key"
+    check_power_limit
 
-    local backend
-    backend=$(yaml_get "$MODELS_YAML" "backend" "$target")
-    local display
-    display=$(yaml_get "$MODELS_YAML" "display_name" "$target")
-    local context
-    context=$(yaml_get "$MODELS_YAML" "context" "$target")
-
-    info "Switching to: $display ($service_name)"
-    info "Backend: $backend | Context: ${context:-default}"
-
-    if [[ "$stop_first" == "true" ]]; then
-        info "Stopping conflicting inference services..."
-        # Only stop other inference containers, not the target
-        $COMPOSE stop llama-server-* 2>/dev/null || true
-        $COMPOSE stop vllm-* 2>/dev/null || true
-        sleep 1
+    local server_args
+    server_args=$(yaml_get_block "$MODELS_YAML" "server_args" "$resolved_key" | tr '\n' ' ')
+    if [[ -z "$server_args" ]]; then
+        fail "No server_args defined for '$resolved_key'"
     fi
 
-    info "Starting $service_name..."
-    $COMPOSE run --rm "$service_name" &
-    local bg_pid=$!
+    local display
+    display=$(yaml_get "$MODELS_YAML" "display_name" "$resolved_key")
+    server_args="${server_args//\{models_dir\}/$MODELS_DIR}"
+    server_args="${server_args//\{config_dir\}/$RTX_CONFIG}"
 
-    ok "Started $display (background PID: $bg_pid)"
+    info "Switching to: $display"
+    info "Args: $LLAMA_BIN $server_args"
+    stop_existing
+
+    local unit_name
+    unit_name="rtx-$(sanitize_unit_name "$resolved_key")"
+
+    info "Starting $unit_name via systemd..."
+    eval "args=($server_args)"
+    systemd-run --user --unit="$unit_name" \
+        --property=Restart=on-failure \
+        --property=RestartSec=5 \
+        --property=Type=simple \
+        --working-directory="$HOME" \
+        --setenv=CUDA_VISIBLE_DEVICES=0 \
+        --setenv=GGML_CUDA_ENABLE_PEER_COPY=1 \
+        --collect \
+        "$LLAMA_BIN" "${args[@]}"
+
+    ok "Started $display (unit: $unit_name)"
     echo ""
-    info "Logs:   $COMPOSE logs -f $service_name"
-    info "Stop:   $COMPOSE stop $service_name"
+    info "Logs:   journalctl --user -u $unit_name -f"
+    info "Stop:   systemctl --user stop $unit_name"
     info "Status: $0 status"
 }
 
-# ─── Print usage ─────────────────────────────────────────────────
+do_logs() {
+    local target="$1"
+    if [[ -z "$target" ]]; then
+        local active
+        active=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | head -1 | awk '{print $1}' || true)
+        if [[ -z "$active" ]]; then
+            fail "No running model. Specify a model key or start one first."
+        fi
+        journalctl --user -u "$active" -f
+    else
+        local resolved_key
+        resolved_key=$(resolve_model_key "$target" 2>/dev/null || echo "")
+        if [[ -z "$resolved_key" ]]; then
+            journalctl --user -u "rtx-$(sanitize_unit_name "$target")" -f 2>/dev/null || \
+                fail "No unit found for '$target'"
+        else
+            journalctl --user -u "rtx-$(sanitize_unit_name "$resolved_key")" -f
+        fi
+    fi
+}
+
+do_stop() {
+    local target="$1"
+    if [[ -n "$target" ]]; then
+        local resolved_key
+        resolved_key=$(resolve_model_key "$target" 2>/dev/null || echo "")
+        local unit_name
+        if [[ -n "$resolved_key" ]]; then
+            unit_name="rtx-$(sanitize_unit_name "$resolved_key")"
+        else
+            unit_name="rtx-$(sanitize_unit_name "$target")"
+        fi
+        systemctl --user stop "$unit_name" 2>/dev/null && ok "Stopped $unit_name" || warn "Not running"
+    else
+    local active_units
+    active_units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
+    if [[ -z "$active_units" ]]; then
+        info "No running models."
+    else
+        for unit in $active_units; do
+            systemctl --user stop "$unit" 2>/dev/null || true
+        done
+        ok "Stopped all models"
+    fi
+    fi
+}
+
 print_usage() {
-    echo "Usage: $0 <model-key|status|list|stop>"
+    echo "Usage: $0 <model-key|status|list|stop|logs>"
     echo ""
     echo "Commands:"
     echo "  list              List all registered models"
-    echo "  status            Show running containers + GPU info"
+    echo "  status            Show running model(s) + GPU info"
     echo "  <model-key>       Start a model (stops others first)"
-    echo "  <model-key> no-stop  Start without stopping others"
-    echo "  stop <service>    Stop a specific service"
+    echo "  stop [model]      Stop model(s). Omitting model stops all."
+    echo "  logs [model]      Follow logs. Omitting model picks running one."
+    echo "  set-power-limit [W]  Set GPU power limit (default 475W)"
     echo ""
     echo "Examples:"
-    echo "  $0 nvfp4-mtp          Start NVFP4-MTP model"
-    echo "  $0 gemma4             Start Gemma4"
-    echo "  $0 router             Start model router"
-    echo "  $0 status             Check what's running"
+    echo "  $0 nvfp4-mtp     Start daily driver (Qwen3.6-27B NVFP4-MTP)"
+    echo "  $0 nvfp4-long    Start 262K context variant"
+    echo "  $0 status        Check what's running"
+    echo "  $0 logs          Follow logs of running model"
+    echo "  $0 set-power-limit         Set GPU to 475W (may need sudo)"
+    echo "  $0 stop          Stop all models"
 }
 
-# ─── Main ────────────────────────────────────────────────────────
 if [ $# -eq 0 ]; then
     print_usage
     exit 1
@@ -171,17 +365,8 @@ fi
 case "$1" in
     status)  do_status ;;
     list)    do_list ;;
-    stop)
-        if [ $# -lt 2 ]; then
-            fail "Usage: $0 stop <service-name>"
-        fi
-        $COMPOSE stop "$2" 2>/dev/null && ok "Stopped $2" || warn "Not running"
-        ;;
-    *)
-        if [ $# -ge 2 ] && [ "$2" = "no-stop" ]; then
-            do_switch "$1" "false"
-        else
-            do_switch "$1" "true"
-        fi
-        ;;
+    stop)    do_stop "${2:-}" ;;
+    logs)    do_logs "${2:-}" ;;
+    set-power-limit) set_power_limit "${2:-475}" ;;
+    *)       do_switch "$1" ;;
 esac

@@ -32,3 +32,6 @@ data/
 runs/
 benchmarks/wattage-results-*.json
 benchmarks/wattage-v2-results-*.json
+
+# Logs
+logs/

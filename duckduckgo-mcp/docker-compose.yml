@@ -7,6 +7,6 @@ services:
       - "8000:8000"
     environment:
       - DDG_SAFE_SEARCH=OFF
-      - DDG_REGION=us-en
+      - DDG_REGION=wt-wt
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8000

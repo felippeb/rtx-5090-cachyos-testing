@@ -31,7 +31,7 @@ class SearchResult:
 
 
 class RateLimiter:
-    def __init__(self, requests_per_minute: int = 30):
+    def __init__(self, requests_per_minute: int = 60):
         self.requests_per_minute = requests_per_minute
         self.requests = []
 
@@ -217,7 +217,7 @@ class WebContentFetcher:
                 f"Unknown fetch backend '{backend}'. Supported: {SUPPORTED_FETCH_BACKENDS}"
             )
         self.default_backend = backend
-        self.rate_limiter = RateLimiter(requests_per_minute=20)
+        self.rate_limiter = RateLimiter(requests_per_minute=40)
 
     async def _fetch_httpx(self, url: str) -> str:
         """Fetch URL via httpx. Raises httpx.HTTPStatusError on non-2xx."""
@@ -438,12 +438,12 @@ def main():
     parser.add_argument(
         "--fetch-backend",
         choices=list(SUPPORTED_FETCH_BACKENDS),
-        default="httpx",
+        default="auto",
         help=(
-            "Default HTTP backend for fetch_content. 'httpx' (default) is lightweight. "
+            "Default HTTP backend for fetch_content. 'httpx' is lightweight. "
             "'curl' uses curl_cffi with Chrome TLS impersonation to bypass bot filters "
             "(Cloudflare Bot Management, etc.) and requires the [browser] extra. "
-            "'auto' tries httpx first and falls back to curl on 403 / Cloudflare "
+            "'auto' (default) tries httpx first and falls back to curl on 403 / Cloudflare "
             "challenge. Individual fetch_content calls can override this via their "
             "'backend' argument."
         ),

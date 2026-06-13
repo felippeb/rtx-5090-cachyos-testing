@@ -23,7 +23,7 @@ USER mcp
 
 # Configuration via environment variables
 ENV DDG_SAFE_SEARCH=OFF
-ENV DDG_REGION=us-en
+ENV DDG_REGION=wt-wt
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
 
@@ -33,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import httpx; r = httpx.get('http://localhost:8000/mcp'); assert r.status_code < 500" || exit 1
 
 # Streamable-HTTP transport for containerized MCP (stdio doesn't work in containers)
-CMD ["sh", "-c", "python -m duckduckgo_mcp_server.server --transport streamable-http --host $MCP_HOST --port $MCP_PORT"]
+CMD ["sh", "-c", "python -m duckduckgo_mcp_server.server --transport streamable-http --fetch-backend auto --host $MCP_HOST --port $MCP_PORT"]

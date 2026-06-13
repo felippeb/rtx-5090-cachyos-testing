@@ -5,8 +5,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="${1:--}"
-if [[ "$OUT" == "--out" ]]; then shift; fi
 OUT_FILE="${1:-$SCRIPT_DIR/build-manifest.json}"
 
 # ─── Git info ──────────────────────────────────────────────────────
@@ -27,21 +25,14 @@ driver_version=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader,nou
 cuda_driver=$(nvidia-smi --query-gpu=cuda_version --format=csv,noheader,nounits 2>/dev/null || echo "N/A")
 gpu_mem_total=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null || echo "N/A")
 
-# ─── Docker images ─────────────────────────────────────────────────
-llama_image_sha=$(docker inspect --format='{{id}}' rtx-inference_llama 2>/dev/null | head -c 16 || echo "not-built")
-
 # ─── Chat template hash ────────────────────────────────────────────
-template_file="$SCRIPT_DIR/docker/chat_template.jinja"
+template_file="$SCRIPT_DIR/config/chat_template.jinja"
 template_hash=$(sha256sum "$template_file" 2>/dev/null | cut -c1-64 || echo "missing")
 template_lines=$(wc -l < "$template_file" 2>/dev/null || echo "0")
 
 # ─── Model registry stats ──────────────────────────────────────────
 models_yaml="$SCRIPT_DIR/config/models.yaml"
 model_count=$(grep -c '^  [a-z].*:$' "$models_yaml" 2>/dev/null || echo "0")
-
-# ─── Compose services count ────────────────────────────────────────
-compose_file="$SCRIPT_DIR/docker/docker-compose.yml"
-service_count=$(grep -c '^  [a-zA-Z].*:' "$compose_file" 2>/dev/null || echo "0")
 
 # ─── Timestamp ─────────────────────────────────────────────────────
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -71,14 +62,13 @@ data = {
         'memory_total_mib': '$gpu_mem_total',
     },
     'chat_template': {
-        'file': 'docker/chat_template.jinja',
+        'file': 'config/chat_template.jinja',
         'sha256': '$template_hash',
         'lines': int('$template_lines'),
         'version': 'v1.2.0',
     },
     'registry': {
         'model_count': int('$model_count'),
-        'compose_service_count': int('$service_count'),
     },
 }
 

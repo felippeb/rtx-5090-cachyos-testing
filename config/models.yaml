@@ -1,521 +1,57 @@
 # Model Registry — declarative model definitions
-# Each entry maps to one or more docker-compose services.
 # The switch-model.sh script reads this file to resolve model names.
+#
+# Fields:
+#   display_name:    Human-readable name
+#   aliases:         Short names for CLI switching
+#   server_args:     Arguments passed to llama-server.
+#                    {models_dir} and {config_dir} are substituted.
+#   hf_repo:         HuggingFace repo (org/name) for auto-download
+#   filename:        GGUF filename in the HF repo
+#   mmproj_filename: mmproj filename (if vision/multimodal model)
+#   mmproj_hf_repo:  Separate HF repo for mmproj (defaults to hf_repo)
 
 models:
-  # ─── Qwen3.6-27B family ────────────────────────────────────────
-  qwen3.6-27b-q4k:
-    display_name: "Qwen3.6-27B UD-Q4_K_XL"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-27b/Qwen3.6-27B-UD-Q4_K_XL.gguf
-    mmproj_path: /models/qwen3.6-27b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    spec_draft: false
-    compose_service: llama-server
-    hf_repo: null
-    revision: null
-
-  qwen3.6-27b-q4k-64k:
-    display_name: "Qwen3.6-27B UD-Q4_K_XL (64K context)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-27b/Qwen3.6-27B-UD-Q4_K_XL.gguf
-    mmproj_path: /models/qwen3.6-27b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 65536
-    cache_type_k: q4_1
-    cache_type_v: q4_1
-    spec_draft: false
-    compose_service: llama-server-27b-64k
-    hf_repo: null
-    revision: null
-
+  # ─── Qwen3.6-27B NVFP4+MTP (daily driver) ──────────────────────
   qwen3.6-27b-nvfp4-mtp-131k:
     display_name: "Qwen3.6-27B NVFP4-MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-27b-nvfp4-mtp/qwen3.6-27b-text-nvfp4-mtp.gguf
-    mmproj_path: /models/qwen3.6-27b-nvfp4-mtp/mmproj-F16.gguf
-    quant: nvfp4
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 2
-    compose_service: llama-server-nvfp4-mtp-131k
-    hf_repo: null
-    revision: null
+    aliases: [nvfp4, nvfp4-mtp, daily-driver, default]
+    model_dir: qwen3.6-27b-nvfp4-mtp
+    hf_repo: nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF
+    filename: qwen3.6-27b-text-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.6-27B-MTP-GGUF
+    server_args: >-
+      -m {models_dir}/qwen3.6-27b-nvfp4-mtp/qwen3.6-27b-text-nvfp4-mtp.gguf
+      --mmproj {models_dir}/qwen3.6-27b-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 8192 -c 131072 -n 32768 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk bf16 -ctv bf16 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 8192
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --chat-template-kwargs '{"enable_thinking": false}'
+      --host 0.0.0.0 --port 10500
 
   qwen3.6-27b-nvfp4-mtp-262k:
     display_name: "Qwen3.6-27B NVFP4-MTP (262K experimental)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-27b-nvfp4-mtp/qwen3.6-27b-text-nvfp4-mtp.gguf
-    mmproj_path: /models/qwen3.6-27b-nvfp4-mtp/mmproj-F16.gguf
-    quant: nvfp4
-    context: 262144
-    cache_type_k: q4_1
-    cache_type_v: q4_1
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 2
+    aliases: [nvfp4-262k, nvfp4-long]
+    model_dir: qwen3.6-27b-nvfp4-mtp
+    hf_repo: nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF
+    filename: qwen3.6-27b-text-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.6-27B-MTP-GGUF
     context_safety_tier: experimental
-    compose_service: llama-server-nvfp4-mtp-262k
-    hf_repo: null
-    revision: null
-
-  qwen3.6-27b-mtp-131k:
-    display_name: "Qwen3.6-27B UD-Q4_K_XL MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-27b-mtp/Qwen3.6-27B-UD-Q4_K_XL.gguf
-    mmproj_path: /models/qwen3.6-27b-mtp/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 2
-    compose_service: llama-server-mtp-131k
-    hf_repo: null
-    revision: null
-
-  # ─── Qwen3.6-35B-A3B family ────────────────────────────────────
-  qwen3.6-35b-q4k:
-    display_name: "Qwen3.6-35B-A3B UD-Q4_K_XL"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
-    mmproj_path: /models/qwen3.6-35b-a3b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: turbo3
-    cache_type_v: turbo3
-    spec_draft: false
-    compose_service: llama-server-qwen35b
-    hf_repo: null
-    revision: null
-
-  qwen3.6-35b-q4k-turbo:
-    display_name: "Qwen3.6-35B-A3B UD-Q4_K_XL (bf16 KV cache)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
-    mmproj_path: /models/qwen3.6-35b-a3b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    spec_draft: false
-    compose_service: llama-server-qwen35b-turbo
-    hf_repo: null
-    revision: null
-
-  qwen3.6-35b-mtp-131k:
-    display_name: "Qwen3.6-35B-A3B MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-35b-a3b-mtp/Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 2
-    compose_service: llama-server-35b-mtp-131k
-    hf_repo: null
-    revision: null
-
-  qwen3.6-35b-mxfp4-mtp-131k:
-    display_name: "Qwen3.6-35B-A3B MXFP4 MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-35b-a3b-mxfp4-mtp/Qwen3.6-35B-A3B-MXFP4_MOE.gguf
-    mmproj_path: /models/qwen3.6-35b-a3b-mxfp4-mtp/mmproj-F16.gguf
-    quant: mxfp4
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 6
-    compose_service: llama-server-35b-mxfp4-mtp-131k
-    hf_repo: null
-    revision: null
-
-  qwen3.6-35b-nvfp4-131k:
-    display_name: "Qwen3.6-35B-A3B NVFP4 (131K)"
-    backend: llama.cpp
-    model_path: /models/qwen3.6-35b-a3b-nvfp4/Qwen3.6-35B-A3B-NVFP4.gguf
-    mmproj_path: /models/qwen3.6-35b-a3b-nvfp4/mmproj-BF16.gguf
-    quant: nvfp4
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: false
-    compose_service: llama-server-35b-nvfp4-131k
-    hf_repo: null
-    revision: null
-
-  # ─── Gemma 4 family ────────────────────────────────────────────
-  gemma4-26b-a4b:
-    display_name: "Gemma-4-26B-A4B-it Q4_K_L"
-    backend: llama.cpp
-    model_path: /models/A4B/google_gemma-4-26B-A4B-it-Q4_K_L.gguf
-    mmproj_path: /models/A4B/mmproj-google_gemma-4-26B-A4B-it-f16.gguf
-    quant: q4_k_l
-    context: 131072
-    cache_type_k: q4_1
-    cache_type_v: q4_1
-    spec_draft: false
-    compose_service: llama-server-26b-a4b
-    hf_repo: null
-    revision: null
-
-  gemma4-31b-q4k:
-    display_name: "Gemma-4-31B-it UD-Q4_K_XL"
-    backend: llama.cpp
-    model_path: /models/gemma4-31b/gemma-4-31B-it-UD-Q4_K_XL.gguf
-    mmproj_path: /models/gemma4-31b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    spec_draft: false
-    compose_service: llama-server-gemma4
-    hf_repo: null
-    revision: null
-
-  gemma4-31b-turbo:
-    display_name: "Gemma-4-31B-it UD-Q4_K_XL (turbo)"
-    backend: llama.cpp
-    model_path: /models/gemma4-31b/gemma-4-31B-it-UD-Q4_K_XL.gguf
-    mmproj_path: /models/gemma4-31b/mmproj-F16.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    spec_draft: false
-    compose_service: llama-server-gemma4-turbo
-    hf_repo: null
-    revision: null
-
-  gemma4-31b-mtp-131k:
-    display_name: "Gemma-4-31B-it MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/gemma4-31b-it/gemma-4-31B-it-UD-Q4_K_XL.gguf
-    draft_model_path: /models/gemma4-31b-it-assistant/gemma-4-31B-it-assistant.Q4_K_M.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: turbo3
-    cache_type_v_draft: turbo3
-    spec_draft: true
-    spec_type: mtp
-    spec_draft_n_max: 16
-    compose_service: llama-server-gemma4-mtp-131k
-    hf_repo: null
-    revision: null
-
-  gemma4-31b-mtp-mainline:
-    display_name: "Gemma-4-31B-it MTP mainline (64K)"
-    backend: llama.cpp
-    model_path: /models/gemma4-31b-it/gemma-4-31B-it-UD-Q4_K_XL.gguf
-    draft_model_path: /models/gemma4-31b-it-assistant/gemma-4-31B-it-assistant-mainline.gguf
-    quant: q4_k_xl
-    context: 65536
-    cache_type_k: bf16
-    cache_type_v: bf16
-    spec_draft: true
-    spec_type: mtp
-    spec_draft_n_max: 3
-    compose_service: llama-server-gemma4-mtp-mainline
-    hf_repo: null
-    revision: null
-
-  gemma4-31b-mtp-mainline-131k:
-    display_name: "Gemma-4-31B-it MTP mainline (131K)"
-    backend: llama.cpp
-    model_path: /models/gemma4-31b-it/gemma-4-31B-it-UD-Q4_K_XL.gguf
-    draft_model_path: /models/gemma4-31b-it-assistant/gemma-4-31B-it-assistant-mainline.gguf
-    quant: q4_k_xl
-    context: 131072
-    cache_type_k: q4_1
-    cache_type_v: q4_1
-    spec_draft: true
-    spec_type: mtp
-    spec_draft_n_max: 3
-    compose_service: llama-server-gemma4-mtp-mainline-131k
-    hf_repo: null
-    revision: null
-
-  gemma4-e4b:
-    display_name: "Gemma-4-E4B-it Q4_K_L"
-    backend: llama.cpp
-    model_path: /models/E4B/e4b/google_gemma-4-E4B-it-Q4_K_L.gguf
-    mmproj_path: /models/E4B/e4b/mmproj-F16.gguf
-    quant: q4_k_l
-    context: 131072
-    cache_type_k: q4_1
-    cache_type_v: q4_1
-    spec_draft: false
-    compose_service: llama-server-e4b
-    hf_repo: null
-    revision: null
-
-  # ─── Qwopus family ──────────────────────────────────────────────
-  qwopus3.6-27b-v2-mtp:
-    display_name: "Qwopus3.6-27B-v2 MTP (131K)"
-    backend: llama.cpp
-    model_path: /models/qwopus3.6-27b-v2-mtp/Qwopus3.6-27B-v2-MTP-Q4_K_M.gguf
-    mmproj_path: /models/qwopus3.6-27b-v2-mtp/mmproj-F32.gguf
-    quant: q4_k_m
-    context: 131072
-    cache_type_k: bf16
-    cache_type_v: bf16
-    cache_type_k_draft: q4_1
-    cache_type_v_draft: q4_1
-    spec_draft: true
-    spec_type: draft-mtp
-    spec_draft_n_max: 2
-    compose_service: llama-server-qwopus-mtp-131k
-    hf_repo: null
-    revision: null
-
-  # ─── Qwen other ─────────────────────────────────────────────────
-  qwen3-14b:
-    display_name: "Qwen3-14B Q4_K_M"
-    backend: llama.cpp
-    model_path: /models/QWEN14B/qwen3-14b/Qwen3-14B-Q4_K_M.gguf
-    quant: q4_k_m
-    context: 131072
-    spec_draft: false
-    compose_service: llama-server-qwen3-14b
-    hf_repo: null
-    revision: null
-
-  qwen2.5-vl-7b:
-    display_name: "Qwen2.5-VL-7B-Instruct Q4_K_M"
-    backend: llama.cpp
-    model_path: /models/QWEN_VL/qwen2.5-vl-7b/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf
-    mmproj_path: /models/QWEN_VL/qwen2.5-vl-7b/mmproj-F16.gguf
-    quant: q4_k_m
-    context: 32768
-    spec_draft: false
-    compose_service: llama-server-qwen2.5-vl-7b
-    hf_repo: null
-    revision: null
-
-  # ─── vLLM-backed models ────────────────────────────────────────
-  vllm-qwen3.6-27b-nvfp4:
-    display_name: "Qwen3.6-27B NVFP4 (vLLM)"
-    backend: vllm
-    hf_repo: sakamakismile/Qwen3.6-27B-NVFP4
-    quant: nvfp4
-    context: 131072
-    compose_service: vllm-qwen3.6-27b-nvfp4
-    revision: null
-
-  vllm-qwen3.6-27b-nvfp4-mtp:
-    display_name: "Qwen3.6-27B NVFP4-MTP (vLLM)"
-    backend: vllm
-    hf_repo: sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP
-    quant: nvfp4
-    context: 131072
-    spec_draft: true
-    compose_service: vllm-qwen3.6-27b-nvfp4-mtp
-    revision: null
-
-  vllm-qwen3.6-27b-nvfp4-turbo:
-    display_name: "Qwen3.6-27B NVFP4 turbo (vLLM, 234K context)"
-    backend: vllm
-    hf_repo: sakamakismile/Qwen3.6-27B-NVFP4
-    quant: nvfp4
-    context: 234567
-    context_safety_tier: experimental
-    compose_service: vllm-qwen3.6-27b-nvfp4-turbo
-    revision: null
-
-  vllm-qwen3.6-27b-nvfp4-mtp-turbo:
-    display_name: "Qwen3.6-27B NVFP4-MTP turbo (vLLM, 262K)"
-    backend: vllm
-    hf_repo: sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP
-    quant: nvfp4
-    context: 262144
-    context_safety_tier: experimental
-    spec_draft: true
-    compose_service: vllm-qwen3.6-27b-nvfp4-mtp-turbo
-    revision: null
-
-  vllm-qwen3.6-27b-fp8:
-    display_name: "Qwen3.6-27B FP8 (vLLM)"
-    backend: vllm
-    hf_repo: Qwen/Qwen3.6-27B-FP8
-    quant: fp8
-    context: 131072
-    compose_service: vllm-qwen3.6-27b-fp8
-    revision: null
-
-  vllm-qwen3.6-27b-fp8-turbo:
-    display_name: "Qwen3.6-27B FP8 turbo (vLLM, 262K)"
-    backend: vllm
-    hf_repo: Qwen/Qwen3.6-27B-FP8
-    quant: fp8
-    context: 262144
-    context_safety_tier: experimental
-    compose_service: vllm-qwen3.6-27b-fp8-turbo
-    revision: null
-
-  vllm-qwen3.6-27b-awq:
-    display_name: "Qwen3.6-27B AWQ-INT4 (vLLM)"
-    backend: vllm
-    hf_repo: cyankiwi/Qwen3.6-27B-AWQ-INT4
-    quant: awq_int4
-    context: 131072
-    compose_service: vllm-qwen3.6-27b-awq
-    revision: null
-
-  vllm-qwen3.6-27b-awq-turbo:
-    display_name: "Qwen3.6-27B AWQ turbo (vLLM, 255K)"
-    backend: vllm
-    hf_repo: cyankiwi/Qwen3.6-27B-AWQ-INT4
-    quant: awq_int4
-    context: 255000
-    context_safety_tier: experimental
-    compose_service: vllm-qwen3.6-27b-awq-turbo
-    revision: null
-
-  vllm-qwen3.6-35b-fp8:
-    display_name: "Qwen3.6-35B-A3B FP8 (vLLM)"
-    backend: vllm
-    hf_repo: Qwen/Qwen3.6-35B-A3B-FP8
-    quant: fp8
-    context: 131072
-    compose_service: vllm-qwen3.6-35b-a3b-fp8
-    revision: null
-
-  vllm-qwen3.6-35b-fp8-turbo:
-    display_name: "Qwen3.6-35B-A3B FP8 turbo (vLLM, 262K)"
-    backend: vllm
-    hf_repo: Qwen/Qwen3.6-35B-A3B-FP8
-    quant: fp8
-    context: 262144
-    context_safety_tier: experimental
-    compose_service: vllm-qwen3.6-35b-a3b-fp8-turbo
-    revision: null
-
-  vllm-qwen3.6-35b-awq:
-    display_name: "Qwen3.6-35B-A3B AWQ (vLLM)"
-    backend: vllm
-    hf_repo: cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit
-    quant: awq_4bit
-    context: 131072
-    compose_service: vllm-qwen3.6-35b-a3b-awq
-    revision: null
-
-  vllm-qwen3.6-35b-awq-131k:
-    display_name: "Qwen3.6-35B-A3B AWQ (vLLM, explicit 131K)"
-    backend: vllm
-    hf_repo: cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit
-    quant: awq_4bit
-    context: 131072
-    compose_service: vllm-qwen3.6-35b-a3b-awq-131k
-    revision: null
-
-  vllm-qwen3.6-35b-awq-turbo:
-    display_name: "Qwen3.6-35B-A3B AWQ turbo (vLLM, 262K)"
-    backend: vllm
-    hf_repo: cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit
-    quant: awq_4bit
-    context: 262144
-    context_safety_tier: experimental
-    compose_service: vllm-qwen3.6-35b-a3b-awq-turbo
-    revision: null
-
-  vllm-qwen3.6-35b-nvfp4-dflash:
-    display_name: "Qwen3.6-35B-A3B NVFP4 dFlash (vLLM)"
-    backend: vllm
-    local_path: /models/qwen3.6-35b-a3b-nvfp4
-    quant: nvfp4
-    context: 131072
-    compose_service: vllm-qwen3.6-35b-a3b-nvfp4-dflash
-    hf_repo: null
-    revision: null
-
-  vllm-gemma4-31b-fp8:
-    display_name: "Gemma-4-31B-it FP8 (vLLM)"
-    backend: vllm
-    hf_repo: google/gemma-4-31b-it-fp8
-    quant: fp8
-    context: 131072
-    compose_service: vllm-gemma4-31b-it
-    revision: null
-
-  vllm-gemma4-31b-nvfp4-mtp:
-    display_name: "Gemma-4-31B-it NVFP4 MTP (vLLM)"
-    backend: vllm
-    hf_repo: nvidia/Gemma-4-31B-IT-NVFP4
-    quant: nvfp4
-    context: 175000
-    spec_draft: true
-    compose_service: vllm-gemma4-31b-it-nvfp4-mtp
-    revision: null
-
-  vllm-gemma4-31b-fp8-turbo:
-    display_name: "Gemma-4-31B-it FP8 turbo (vLLM, 262K)"
-    backend: vllm
-    hf_repo: google/gemma-4-31b-it-fp8
-    quant: fp8
-    context: 262144
-    context_safety_tier: experimental
-    compose_service: vllm-gemma4-31b-it-turbo
-    revision: null
-
-  vllm-holo3.1-35b-nvfp4:
-    display_name: "Holo3.1-35B-A3B NVFP4 (vLLM)"
-    backend: vllm
-    local_path: /models/vllm/holo3.1-35b-a3b-nvfp4
-    quant: nvfp4
-    context: 131072
-    compose_service: vllm-holo3.1-35b-nvfp4
-    hf_repo: null
-    revision: null
-
-  vllm-qwen2.5-vl-7b-awq:
-    display_name: "Qwen2.5-VL-7B AWQ (vLLM)"
-    backend: vllm
-    hf_repo: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
-    quant: awq
-    context: 8192
-    compose_service: vllm-qwen2.5-vl-7b
-    revision: null
-
-  # ─── Infrastructure services (not models) ──────────────────────
-  router:
-    display_name: "llama.cpp Router"
-    backend: llama.cpp
-    compose_service: llama-server-router
-    is_infra: true
-
-  swap:
-    display_name: "llama-swap Proxy"
-    backend: llama-swap
-    compose_service: llama-swap
-    is_infra: true
-
-  webui:
-    display_name: "Open WebUI"
-    backend: webui
-    compose_service: open-webui
-    is_infra: true
+    server_args: >-
+      -m {models_dir}/qwen3.6-27b-nvfp4-mtp/qwen3.6-27b-text-nvfp4-mtp.gguf
+      --mmproj {models_dir}/qwen3.6-27b-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 5120 -c 262144 -n 16384 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 64 -cram 4096
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --chat-template-kwargs '{"enable_thinking": false}'
+      --host 0.0.0.0 --port 10500
