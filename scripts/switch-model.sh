@@ -371,6 +371,10 @@ do_logs() {
 
 do_stop() {
     local target="$1"
+
+    # Always run full cleanup (user units + legacy system units + stray processes)
+    stop_existing 10500
+
     if [[ -n "$target" ]]; then
         local resolved_key
         resolved_key=$(resolve_model_key "$target" 2>/dev/null || echo "")
@@ -380,19 +384,17 @@ do_stop() {
         else
             unit_name="rtx-$(sanitize_unit_name "$target")"
         fi
-        systemctl --user stop "$unit_name" 2>/dev/null && ok "Stopped $unit_name" || warn "Not running"
-    else
-    local active_units
-    active_units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
-    if [[ -z "$active_units" ]]; then
-        info "No running models."
-    else
-        for unit in $active_units; do
-            systemctl --user stop "$unit" 2>/dev/null || true
-        done
-        ok "Stopped all models"
+        systemctl --user stop "$unit_name" 2>/dev/null && ok "Stopped $unit_name" || true
     fi
-    fi
+
+    # Wait for port to free after stopping everything
+    local retries=0
+    while lsof -i :10500 >/dev/null 2>&1 && [[ $retries -lt 20 ]]; do
+        sleep 0.5
+        retries=$((retries + 1))
+    done
+
+    ok "Done."
 }
 
 print_usage() {
