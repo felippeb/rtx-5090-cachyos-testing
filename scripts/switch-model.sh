@@ -197,7 +197,7 @@ stop_existing() {
 
     # Stop user-space rtx-* units (new-style)
     local active_units
-    active_units=$(systemctl --user list-units --no-legend 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
+    active_units=$(systemctl --user list-units --no-legend --plain 'rtx-*' 2>/dev/null | awk '{print $1}' || true)
     if [[ -n "$active_units" ]]; then
         info "Stopping user model(s): $active_units"
         for unit in $active_units; do
@@ -207,7 +207,7 @@ stop_existing() {
 
     # Stop old system-level llama-server-* units (legacy)
     local system_units
-    system_units=$(systemctl list-units --no-legend 'llama-server-*' 2>/dev/null | awk '{print $1}' || true)
+    system_units=$(systemctl list-units --no-legend --plain 'llama-server-*' 2>/dev/null | awk '{print $1}' || true)
     if [[ -n "$system_units" ]]; then
         info "Stopping legacy system model(s): $system_units"
         for unit in $system_units; do
@@ -256,6 +256,13 @@ stop_existing() {
             warn "Proceeding anyway — model may fall back to CPU."
         fi
     fi
+}
+
+clean_stale_units() {
+    # Remove stale transient user units so systemd-run can create fresh ones
+    local unit_name="$1"
+    rm -f "$XDG_RUNTIME_DIR"/../systemd/user/"$unit_name".service 2>/dev/null || true
+    systemctl --user reset-failed "$unit_name" 2>/dev/null || true
 }
 
 ensure_binary() {
@@ -320,12 +327,15 @@ do_switch() {
     server_args="${server_args//\{models_dir\}/$MODELS_DIR}"
     server_args="${server_args//\{config_dir\}/$RTX_CONFIG}"
 
+    local unit_name
+    unit_name="rtx-$(sanitize_unit_name "$resolved_key")"
+
     info "Switching to: $display"
     info "Args: $LLAMA_BIN $server_args"
     stop_existing
 
-    local unit_name
-    unit_name="rtx-$(sanitize_unit_name "$resolved_key")"
+    # Clean stale transient unit so systemd-run doesn't fail
+    clean_stale_units "$unit_name"
 
     info "Starting $unit_name via systemd..."
     eval "args=($server_args)"
