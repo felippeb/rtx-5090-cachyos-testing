@@ -28,7 +28,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Paths — everything under ~/.local, no sudo needed
-LLAMA_DIR="$HOME/.local/share/rtx-testing/llama-mtp"
+# Build installs into ~/.local/share/rtx-testing/llama.cpp-nvfp4/
+# Symlink at ~/.local/bin/llama-server points to the real binary.
+LLAMA_DIR="$HOME/.local/share/rtx-testing/llama.cpp-nvfp4"
 MODELS_DIR="$HOME/.local/share/rtx-testing/models"
 LLAMA_BIN_LINK="$HOME/.local/bin/llama-server"
 

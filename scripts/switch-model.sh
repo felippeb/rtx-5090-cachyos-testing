@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$SCRIPT_DIR/config"
 MODELS_YAML="$CONFIG_DIR/models.yaml"
 
-LLAMA_BIN="${LLAMA_BIN:-$HOME/.local/bin/llama-server}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/.local/share/rtx-testing/llama.cpp-nvfp4/build/bin/llama-server}"
 MODELS_DIR="${RTX_MODELS:-$HOME/.local/share/rtx-testing/models}"
 RTX_CONFIG="${RTX_CONFIG:-$HOME/.config/rtx-testing}"
 
@@ -329,7 +329,7 @@ do_switch() {
 
     info "Starting $unit_name via systemd..."
     eval "args=($server_args)"
-    local LIB_PATH="$(dirname "$LLAMA_BIN")"
+    local LIB_PATH="$(dirname "$(readlink -f "$LLAMA_BIN")")"
     systemd-run --user --unit="$unit_name" \
         --property=Restart=on-failure \
         --property=RestartSec=5 \
