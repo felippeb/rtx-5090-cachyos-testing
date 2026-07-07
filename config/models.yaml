@@ -55,3 +55,22 @@ models:
       --jinja --chat-template-file {config_dir}/chat_template.jinja
       --reasoning off
       --host 0.0.0.0 --port 10500
+
+  # ─── Qwopus3.6-27B v2 NVFP4+MTP (Jackrong merge, michaelw9999 quant) ───
+  qwopus3.6-27b-nvfp4-mtp:
+    display_name: "Qwopus3.6-27B v2 NVFP4-MTP"
+    aliases: [qwopus, qwopus-nvfp4]
+    model_dir: qwopus3.6-27b-nvfp4-mtp
+    hf_repo: michaelw9999/Qwopus3.6-27B-v2-MTP-NVFP4-GGUF
+    filename: Qwopus3.6-27B-v2-MTP-NVFP4-GGUF.gguf
+    server_args: >-
+      -m {models_dir}/qwopus3.6-27b-nvfp4-mtp/Qwopus3.6-27B-v2-MTP-NVFP4-GGUF.gguf
+      -fitt 8192 -c 131072 -n 32768 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk bf16 -ctv bf16 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 8192
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --reasoning off
+      --host 0.0.0.0 --port 10500

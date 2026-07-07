@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # User-space MTP setup — builds llama.cpp into ~/.local, no sudo required.
-# Supports: Qwen3.6-27B NVFP4-MTP (daily driver)
+# Supports: Qwen3.6-27B NVFP4-MTP, Qwopus3.6-27B v2 NVFP4-MTP
 #
-# Usage: bash llama/setup-mtp.sh [--model nvfp4] [--update] [--hf-token TOKEN]
+# Usage: bash llama/setup-mtp.sh [--model nvfp4|qwopus] [--update] [--hf-token TOKEN]
 
 set -euo pipefail
 
@@ -66,6 +66,12 @@ MODEL_NAME[nvfp4]="qwen3.6-27b-text-nvfp4-mtp.gguf"
 MODEL_DIR_NAME[nvfp4]="qwen3.6-27b-nvfp4-mtp"
 MODEL_MMPROJ[nvfp4]="mmproj-F16.gguf"
 MODEL_MMPROJ_REPO[nvfp4]="unsloth/Qwen3.6-27B-MTP-GGUF"
+
+MODEL_HF_REPO[qwopus]="michaelw9999/Qwopus3.6-27B-v2-MTP-NVFP4-GGUF"
+MODEL_NAME[qwopus]="Qwopus3.6-27B-v2-MTP-NVFP4-GGUF.gguf"
+MODEL_DIR_NAME[qwopus]="qwopus3.6-27b-nvfp4-mtp"
+MODEL_MMPROJ[qwopus]=""
+MODEL_MMPROJ_REPO[qwopus]=""
 
 # ─── Section 1: Prerequisites ───────────────────────────────────
 section_prerequisites() {
@@ -321,12 +327,20 @@ main() {
     section_build
     section_models
 
+    local alias_list="${MODEL_DIR_NAME[$MODEL]}"
+    # Show the short alias for this model
+    case "$MODEL" in
+        nvfp4)   alias_list="nvfp4" ;;
+        qwopus)  alias_list="qwopus" ;;
+        *)       alias_list="$MODEL" ;;
+    esac
+
     ok "═══════════════════════════════════════════════════════════"
     ok "Setup complete! All user-space, no sudo needed."
     ok "═══════════════════════════════════════════════════════════"
     echo ""
     info "Start the model:"
-    info "  ./scripts/switch-model.sh nvfp4"
+    info "  ./scripts/switch-model.sh ${alias_list}"
     echo ""
     info "Check status:"
     info "  ./scripts/switch-model.sh status"
