@@ -100,7 +100,7 @@ Uses `tool-eval-bench` against running llama-server. Results saved to `runs/` di
 
 ### Results
 
-**Best result:** Qwen3.8-27B NVFP4-MTP GGUF (converted from sakamakismile safetensors).
+**Best result:** Qwen3.8-27B NVFP4-MTP GGUF (converted from sakamakismile safetensors, published as [felippeburk/Qwen3.8-27B-NVFP4-MTP-GGUF](https://huggingface.co/felippeburk/Qwen3.8-27B-NVFP4-MTP-GGUF)).
 
 Full benchmark results and comparisons: [`benchmarks/results.md`](benchmarks/results.md)
 
@@ -325,6 +325,7 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 | Qwen Fixed Chat Templates | https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates |
 | Qwen3.8-27B | https://huggingface.co/Qwen/Qwen3.8-27B |
 | NVFP4-MTP safetensors (Qwen3.8) | https://huggingface.co/sakamakismile/Qwen3.8-27B-MTP-NVFP4 |
+| NVFP4-MTP GGUF (Qwen3.8, converted by this repo) | https://huggingface.co/felippeburk/Qwen3.8-27B-NVFP4-MTP-GGUF |
 | Unsloth GGUF (Qwen3.8) | https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
 | MTP-ONLY draft (Qwen3.8) | https://huggingface.co/a4lg/Qwen3.8-27B-MTP-ONLY-GGUF |
 | NVFP4-MTP GGUF (Qwen3.6) | https://huggingface.co/nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF |
