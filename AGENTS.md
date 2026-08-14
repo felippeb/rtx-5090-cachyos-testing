@@ -1,6 +1,6 @@
 # RTX 5090 Local AI — Agent Instructions
 
-## Daily Driver: Qwen3.6-27B NVFP4-MTP (131K)
+## Daily Driver: Qwen3.8-27B NVFP4-MTP (131K)
 
 ### Start / Stop / Status
 
@@ -21,8 +21,8 @@
 ### Fresh Install (no sudo)
 
 ```bash
-bash llama/setup-mtp.sh --model nvfp4     # Build + download models
-bash llama/setup-mtp.sh --update          # Rebuild only, keep models
+bash llama/setup-mtp.sh --model qwen38   # Build + download + convert models
+bash llama/setup-mtp.sh --update         # Rebuild only, keep models
 ```
 
 Builds to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/share/rtx-testing/models/`.

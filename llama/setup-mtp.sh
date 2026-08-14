@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # User-space MTP setup — builds llama.cpp into ~/.local, no sudo required.
-# Supports: Qwen3.6-27B NVFP4-MTP, Qwopus3.6-27B v2 NVFP4-MTP
+# Supports: Qwen3.8-27B NVFP4-MTP (converted), Qwen3.6-27B NVFP4-MTP, Qwopus3.6-27B v2 NVFP4-MTP
 #
-# Usage: bash llama/setup-mtp.sh [--model nvfp4|qwopus] [--update] [--hf-token TOKEN]
+# Usage: bash llama/setup-mtp.sh [--model qwen38|nvfp4|qwopus] [--update] [--hf-token TOKEN]
 
 set -euo pipefail
 
 # ─── Configuration ───────────────────────────────────────────────
-MODEL="nvfp4"
+MODEL="qwen38"
 UPDATE_MODE=0
 HF_TOKEN="${HF_TOKEN:-}"
 
@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
             HF_TOKEN="$2"; shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2
-            echo "Usage: bash $0 [--model nvfp4] [--update] [--hf-token TOKEN]"
+            echo "Usage: bash $0 [--model qwen38|nvfp4|qwopus] [--update] [--hf-token TOKEN]"
             exit 1 ;;
     esac
 done
@@ -41,6 +41,9 @@ CUDA_COMPILER="/opt/cuda/bin/nvcc"
 
 HF_VENV_DIR="$HOME/.local/share/rtx-testing/.venv-hf"
 HF_CLI="$HF_VENV_DIR/bin/hf"
+# Conversion venv (torch + transformers) for NVFP4 safetensors -> GGUF
+CONV_VENV_DIR="$HOME/.local/share/rtx-testing/.venv-conv"
+CONV_PY="$CONV_VENV_DIR/bin/python"
 
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -59,7 +62,16 @@ has_mtp() {
 }
 
 # ─── Model definitions ──────────────────────────────────────────
-declare -A MODEL_HF_REPO MODEL_NAME MODEL_DIR_NAME MODEL_MMPROJ MODEL_MMPROJ_REPO
+# For models sourced from safetensors (MODEL_SOURCE=safetensors), MODEL_HF_REPO
+# is the HF repo with raw safetensors and MODEL_NAME is the converted output GGUF.
+declare -A MODEL_HF_REPO MODEL_NAME MODEL_DIR_NAME MODEL_MMPROJ MODEL_MMPROJ_REPO MODEL_SOURCE
+
+MODEL_HF_REPO[qwen38]="sakamakismile/Qwen3.8-27B-MTP-NVFP4"
+MODEL_NAME[qwen38]="qwen3.8-27b-text-nvfp4-mtp.gguf"
+MODEL_DIR_NAME[qwen38]="qwen3.8-27b-nvfp4-mtp"
+MODEL_MMPROJ[qwen38]="mmproj-F16.gguf"
+MODEL_MMPROJ_REPO[qwen38]="unsloth/Qwen3.8-27B-GGUF"
+MODEL_SOURCE[qwen38]="safetensors"
 
 MODEL_HF_REPO[nvfp4]="nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF"
 MODEL_NAME[nvfp4]="qwen3.6-27b-text-nvfp4-mtp.gguf"
@@ -267,7 +279,70 @@ section_build() {
     echo ""
 }
 
-# ─── Section 3: Download Models ─────────────────────────────────
+# ─── Section 3: Download / Convert Models ───────────────────────
+section_convert() {
+    local m="$1"
+    if [[ "${MODEL_SOURCE[$m]:-}" != "safetensors" ]]; then
+        return 0
+    fi
+
+    local repo="${MODEL_HF_REPO[$m]}"
+    local name="${MODEL_NAME[$m]}"
+    local dir_name="${MODEL_DIR_NAME[$m]}"
+    local model_dir="$MODELS_DIR/$dir_name"
+
+    if [[ -f "$model_dir/$name" ]]; then
+        ok "[$m] Converted GGUF already exists: $name. Skipping."
+        return 0
+    fi
+
+    mkdir -p "$model_dir"
+
+    local hf_token_args=()
+    if [[ -n "$HF_TOKEN" ]]; then
+        hf_token_args+=("--token" "$HF_TOKEN")
+    fi
+
+    info "[$m] Setting up conversion venv at $CONV_VENV_DIR..."
+    if [[ ! -x "$CONV_PY" ]]; then
+        uv venv "$CONV_VENV_DIR" --quiet 2>/dev/null || python3 -m venv "$CONV_VENV_DIR"
+    fi
+    if ! "$CONV_PY" -c "import torch, transformers, safetensors" 2>/dev/null; then
+        info "[$m] Installing torch + transformers into conversion venv (~3GB)..."
+        uv pip install --python "$CONV_PY" torch transformers safetensors --quiet
+    fi
+    "$CONV_PY" -c "import torch, transformers, safetensors" || fail "Conversion deps missing in $CONV_PY"
+
+    local src_dir="$model_dir/source"
+    rm -rf "$src_dir"
+    mkdir -p "$src_dir"
+
+    if [[ ! -f "$src_dir/config.json" ]]; then
+        info "[$m] Downloading safetensors from $repo (~20GB, takes a while)..."
+        HF_XET_HIGH_PERFORMANCE=1 "$HF_CLI" download "$repo" --local-dir "$src_dir" "${hf_token_args[@]}"
+    fi
+
+    local converter="$LLAMA_DIR/convert_hf_to_gguf.py"
+    if [[ ! -f "$converter" ]]; then
+        fail "Converter not found: $converter (build llama.cpp first)"
+    fi
+
+    info "[$m] Converting NVFP4 safetensors -> GGUF (this takes several minutes)..."
+    HF_TOKEN="${HF_TOKEN:-}" "$CONV_PY" "$converter" "$src_dir" \
+        --outfile "$model_dir/$name" \
+        --outtype auto
+
+    if [[ ! -f "$model_dir/$name" ]]; then
+        fail "[$m] Conversion failed - output GGUF not found"
+    fi
+
+    info "[$m] Cleaning up safetensors source dir ($src_dir)..."
+    rm -rf "$src_dir"
+
+    ok "[$m] Converted: $model_dir/$name"
+    echo ""
+}
+
 section_models() {
     info "=== Section 3: Download Models ==="
 
@@ -282,6 +357,28 @@ section_models() {
     local dir_name="${MODEL_DIR_NAME[$m]}"
     local mmproj="${MODEL_MMPROJ[$m]}"
     local model_dir="$MODELS_DIR/$dir_name"
+
+    if [[ "${MODEL_SOURCE[$m]:-}" == "safetensors" ]]; then
+        section_convert "$m"
+        mmproj="${MODEL_MMPROJ[$m]}"
+        if [[ -n "$mmproj" ]]; then
+            local mmproj_repo="${MODEL_MMPROJ_REPO[$m]:-$repo}"
+            local hf_token_args=()
+            if [[ -n "$HF_TOKEN" ]]; then
+                hf_token_args+=("--token" "$HF_TOKEN")
+            fi
+            if [[ -f "$model_dir/$mmproj" ]]; then
+                ok "[$m] mmproj already exists. Skipping."
+            else
+                info "[$m] Downloading $mmproj from $mmproj_repo..."
+                HF_XET_HIGH_PERFORMANCE=1 "$HF_CLI" download "$mmproj_repo" "$mmproj" --local-dir "$model_dir" "${hf_token_args[@]}"
+            fi
+        fi
+        ok "[$m] Model files:"
+        ls -lh "$model_dir/"
+        echo ""
+        return
+    fi
 
     mkdir -p "$model_dir"
 
@@ -330,6 +427,7 @@ main() {
     local alias_list="${MODEL_DIR_NAME[$MODEL]}"
     # Show the short alias for this model
     case "$MODEL" in
+        qwen38)  alias_list="qwen38" ;;
         nvfp4)   alias_list="nvfp4" ;;
         qwopus)  alias_list="qwopus" ;;
         *)       alias_list="$MODEL" ;;

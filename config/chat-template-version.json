@@ -1,15 +1,16 @@
 {
-  "chat_template_version": "v2.0.0",
-  "source": "https://huggingface.co/sakamakismile/Qwen3.6-27B-NVFP4/resolve/main/chat_template.jinja",
-  "commit": "c12989315a26e1cc5d3f8a5d4b96fdd5921adc8c",
-  "description": "Patched Qwen3.6 chat template for coding-agent/tool-calling use (sakamakismile)",
-  "sha256": "c1c0c1df2ff804079c549c4829c0de3fc969b2badf58a7bca73e585859a9bcd3",
+  "chat_template_version": "v3.0.0",
+  "source": "https://huggingface.co/sakamakismile/Qwen3.8-27B-MTP-NVFP4/resolve/main/chat_template.jinja",
+  "commit": "6d98dc1f1d5259c9582794014b73852baf20f805",
+  "description": "Patched Qwen3.8 chat template for coding-agent/tool-calling use (sakamakismile base + repo patches)",
+  "sha256": "16c398cdeaa11d132873f2b86e6c391b8d2c7118cde4857bc75ad1c7a86b7431",
   "features": [
     "system/developer message folding",
     "think_on/think_off toggles",
     "safe tool-call serialization",
     "multi-step tool-use detection",
-    "vision content handling"
+    "vision content handling",
+    "reasoning_effort instructions (xhigh/medium/low)"
   ],
-  "update_notes": "v2.0.0: sync with sakamakismile/Qwen3.6-27B-NVFP4 HF repo (commit c129893)"
+  "update_notes": "v3.0.0: Qwen3.8 template (sakamakismile commit 6d98dc1) with repo's coding-agent patches applied"
 }

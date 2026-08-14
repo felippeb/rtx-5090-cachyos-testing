@@ -12,10 +12,54 @@
 #   mmproj_hf_repo:  Separate HF repo for mmproj (defaults to hf_repo)
 
 models:
-  # ─── Qwen3.6-27B NVFP4+MTP (daily driver) ──────────────────────
+  # ─── Qwen3.8-27B NVFP4+MTP (daily driver) ─────────────────────
+  qwen3.8-27b-nvfp4-mtp-131k:
+    display_name: "Qwen3.8-27B NVFP4-MTP (131K)"
+    aliases: [qwen38, nvfp4, nvfp4-mtp, daily-driver, default]
+    model_dir: qwen3.8-27b-nvfp4-mtp
+    hf_repo: null
+    filename: qwen3.8-27b-text-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.8-27B-GGUF
+    server_args: >-
+      -m {models_dir}/qwen3.8-27b-nvfp4-mtp/qwen3.8-27b-text-nvfp4-mtp.gguf
+      --mmproj {models_dir}/qwen3.8-27b-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 8192 -c 131072 -n 32768 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk bf16 -ctv bf16 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 8192
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --reasoning on
+      --host 0.0.0.0 --port 10500
+
+  qwen3.8-27b-nvfp4-mtp-262k:
+    display_name: "Qwen3.8-27B NVFP4-MTP (262K experimental)"
+    aliases: [qwen38-262k, nvfp4-262k, nvfp4-long]
+    model_dir: qwen3.8-27b-nvfp4-mtp
+    hf_repo: null
+    filename: qwen3.8-27b-text-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.8-27B-GGUF
+    context_safety_tier: experimental
+    server_args: >-
+      -m {models_dir}/qwen3.8-27b-nvfp4-mtp/qwen3.8-27b-text-nvfp4-mtp.gguf
+      --mmproj {models_dir}/qwen3.8-27b-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 5120 -c 262144 -n 16384 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 64 -cram 4096
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --reasoning off
+      --host 0.0.0.0 --port 10500
+
+  # ─── Qwen3.6-27B NVFP4+MTP (previous daily driver) ────────────
   qwen3.6-27b-nvfp4-mtp-131k:
     display_name: "Qwen3.6-27B NVFP4-MTP (131K)"
-    aliases: [nvfp4, nvfp4-mtp, daily-driver, default]
+    aliases: [qwen36, nvfp4-36]
     model_dir: qwen3.6-27b-nvfp4-mtp
     hf_repo: nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF
     filename: qwen3.6-27b-text-nvfp4-mtp.gguf
@@ -36,7 +80,7 @@ models:
 
   qwen3.6-27b-nvfp4-mtp-262k:
     display_name: "Qwen3.6-27B NVFP4-MTP (262K experimental)"
-    aliases: [nvfp4-262k, nvfp4-long]
+    aliases: [nvfp4-36-262k, nvfp4-36-long]
     model_dir: qwen3.6-27b-nvfp4-mtp
     hf_repo: nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF
     filename: qwen3.6-27b-text-nvfp4-mtp.gguf

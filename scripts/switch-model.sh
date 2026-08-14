@@ -152,9 +152,8 @@ ensure_model_downloaded() {
 
     local hf_repo
     hf_repo=$(yaml_get "$MODELS_YAML" "hf_repo" "$resolved_key")
-    if [[ -z "$hf_repo" || "$hf_repo" == "null" ]]; then
-        return 0
-    fi
+    local mmproj_filename
+    mmproj_filename=$(yaml_get "$MODELS_YAML" "mmproj_filename" "$resolved_key")
 
     local filename model_dir_sub
     filename=$(yaml_get "$MODELS_YAML" "filename" "$resolved_key")
@@ -163,6 +162,26 @@ ensure_model_downloaded() {
 
     local model_dir="$MODELS_DIR/$model_dir_sub"
     local model_file="$model_dir/$filename"
+
+    if [[ -z "$hf_repo" || "$hf_repo" == "null" ]]; then
+        if [[ -n "$mmproj_filename" ]]; then
+            local mmproj_repo
+            mmproj_repo=$(yaml_get "$MODELS_YAML" "mmproj_hf_repo" "$resolved_key")
+            if [[ -n "$mmproj_repo" ]]; then
+                local mmproj_file="$model_dir/$mmproj_filename"
+                if [[ ! -f "$mmproj_file" ]]; then
+                    info "Downloading $mmproj_filename from $mmproj_repo..."
+                    mkdir -p "$model_dir"
+                    HF_XET_HIGH_PERFORMANCE=1 huggingface-cli download "$mmproj_repo" "$mmproj_filename" \
+                        --local-dir "$model_dir" ${HF_TOKEN:+--token "$HF_TOKEN"}
+                    ok "Downloaded $mmproj_filename"
+                else
+                    ok "mmproj exists: $mmproj_filename"
+                fi
+            fi
+        fi
+        return 0
+    fi
 
     if [[ -n "$filename" && ! -f "$model_file" ]]; then
         info "Downloading $filename from $hf_repo..."
@@ -174,8 +193,6 @@ ensure_model_downloaded() {
         ok "Model exists: $model_file"
     fi
 
-    local mmproj_filename
-    mmproj_filename=$(yaml_get "$MODELS_YAML" "mmproj_filename" "$resolved_key")
     if [[ -n "$mmproj_filename" ]]; then
         local mmproj_repo
         mmproj_repo=$(yaml_get "$MODELS_YAML" "mmproj_hf_repo" "$resolved_key")
@@ -455,10 +472,11 @@ print_usage() {
     echo "  set-power-limit [W]  Set GPU power limit (default 475W)"
     echo ""
     echo "Examples:"
-    echo "  $0 nvfp4-mtp     Start daily driver (Qwen3.6-27B NVFP4-MTP)"
-    echo "  $0 nvfp4-long    Start 262K context variant"
-    echo "  $0 status        Check what's running"
-    echo "  $0 logs          Follow logs of running model"
+    echo "  $0 nvfp4          Start daily driver (Qwen3.8-27B NVFP4-MTP)"
+    echo "  $0 qwen36         Start previous daily driver (Qwen3.6-27B NVFP4-MTP)"
+    echo "  $0 nvfp4-long     Start 262K context variant"
+    echo "  $0 status         Check what's running"
+    echo "  $0 logs           Follow logs of running model"
     echo "  $0 set-power-limit         Set GPU to 475W (may need sudo)"
     echo "  $0 stop          Stop all models"
 }

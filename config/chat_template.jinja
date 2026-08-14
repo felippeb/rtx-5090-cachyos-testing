@@ -2,21 +2,22 @@
 {%- set video_count = namespace(value=0) -%}
 {%- set ns = namespace(enable_thinking=true, multi_step_tool=true, last_query_index=messages|length - 1) -%}
 {#-
-  Patched Qwen3.6 chat template for coding-agent/tool-calling use.
+  Patched Qwen3.8 chat template for coding-agent/tool-calling use.
 
-  This is a conservative drop-in patch for Qwen3.6-family repos. It preserves the
-  official Qwen3.6 vision/text rendering and XML-like tool-call syntax, while fixing
+  This is a conservative drop-in patch for Qwen3.8-family repos. It preserves the
+  official Qwen3.8 vision/text rendering and XML-like tool-call syntax, while fixing
   common coding-agent issues around developer messages, thinking toggles, historical
   tool calls, and tool responses.
 
-  Key changes from the official Qwen3.6 template:
-  - Preserve image/video/text content handling from upstream Qwen3.6.
+  Key changes from the official Qwen3.8 template:
+  - Preserve image/video/text content handling from upstream Qwen3.8.
   - Fold consecutive leading system/developer messages into one system block.
   - Support <|think_on|> / <|think_off|> and the enable_thinking flag.
   - Avoid exposing thinking-toggle control tokens to the model.
   - Avoid injecting empty historical <think> blocks unless generation is explicitly think-off.
   - Serialize assistant.tool_calls safely for mapping arguments and JSON-string arguments.
   - Include Function: <name> in tool responses when available.
+  - Reasoning-effort instructions (xhigh/medium/low) from official Qwen3.8.
 -#}
 {%- macro render_content(content, do_vision_count, is_system_content=false) %}
     {%- if content is string %}
@@ -78,6 +79,19 @@
     {{- raise_exception('No messages provided.') }}
 {%- endif %}
 
+{%- set reasoning_instructions = '' %}
+{%- if ns.enable_thinking %}
+    {%- set resolved_reasoning_effort = reasoning_effort|default('xhigh') %}
+    {%- if resolved_reasoning_effort not in ('xhigh', 'medium', 'low') %}
+        {{- raise_exception('Unexpected reasoning effort ' ~ reasoning_effort ~ '. Supported types are xhigh (default), medium, and low.') }}
+    {%- endif %}
+    {%- if resolved_reasoning_effort == 'xhigh' %}
+        {%- set reasoning_instructions = 'Reasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.' %}
+    {%- elif resolved_reasoning_effort == 'low' %}
+        {%- set reasoning_instructions = 'Reasoning effort is set to low. Keep your thinking brief and focused, moving directly to the conclusion without unnecessary elaboration.' %}
+    {%- endif %}
+{%- endif %}
+
 {#- Fold consecutive leading system/developer messages into one system block. -#}
 {%- set leading = namespace(content='', end_index=0) %}
 {%- for message in messages %}
@@ -97,6 +111,9 @@
 
 {%- if tools and tools is iterable and tools is not mapping %}
     {{- '<|im_start|>system\n' }}
+    {%- if reasoning_instructions %}
+        {{- reasoning_instructions + '\n\n' }}
+    {%- endif %}
     {{- "# Tools\n\nYou have access to the following functions:\n\n<tools>" }}
     {%- for tool in tools %}
         {{- "\n" }}
@@ -111,6 +128,8 @@
 {%- else %}
     {%- if leading.content %}
         {{- '<|im_start|>system\n' + leading.content + '<|im_end|>\n' }}
+    {%- elif reasoning_instructions %}
+        {{- '<|im_start|>system\n' + reasoning_instructions + '<|im_end|>\n' }}
     {%- endif %}
 {%- endif %}
 
@@ -176,12 +195,12 @@
                     {{- '\n<tool_call>\n<function=' + tool_call.name + '>\n' }}
                 {%- endif %}
 
-                {%- if tool_call.arguments is defined %}
+                {%- if tool_call.arguments is defined and tool_call.arguments != '' %}
                     {%- set t_args = tool_call.arguments %}
                     {%- if t_args is mapping %}
                         {%- for args_name, args_value in t_args | items %}
                             {{- '<parameter=' + args_name + '>\n' }}
-                            {%- set args_value = args_value | string if args_value is string else args_value | tojson %}
+                            {%- set args_value = args_value | string if args_value is string else args_value | tojson | safe %}
                             {{- args_value }}
                             {{- '\n</parameter>\n' }}
                         {%- endfor %}
@@ -191,7 +210,7 @@
                         {{- '\n</parameter>\n' }}
                     {%- else %}
                         {{- '<parameter=arguments>\n' }}
-                        {{- t_args | tojson }}
+                        {{- t_args | tojson | safe }}
                         {{- '\n</parameter>\n' }}
                     {%- endif %}
                 {%- endif %}

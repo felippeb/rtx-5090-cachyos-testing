@@ -2,7 +2,7 @@
 
 Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 
-**Daily driver:** Qwen3.6-27B NVFP4-MTP (131K context) via llama.cpp mainline | NVFP4 GGUF | Best overall quality + speed (93/100, 1.2s median).
+**Daily driver:** Qwen3.8-27B NVFP4-MTP (131K context) via llama.cpp mainline | NVFP4 GGUF (converted from sakamakismile safetensors) | Best overall quality + speed.
 
 ## Stack
 
@@ -13,7 +13,7 @@ Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 | Shell | fish |
 | CUDA | 13.3 (driver 610.43.02) |
 | Runtime | llama.cpp mainline (ggml-org) + MTP PR #22673 (NVFP4 native), vLLM |
-| Default model | Qwen3.6-27B NVFP4-MTP (19.7 GB, 131K context, NVFP4 + speculative decoding) |
+| Default model | Qwen3.8-27B NVFP4-MTP (~20 GB, 131K context, NVFP4 + speculative decoding) |
 | Build location | `~/.local/share/rtx-testing/llama.cpp-nvfp4/` (user-space, no sudo) |
 | UI | OpenCode, Claude Code (CLI + VS Code), Open WebUI |
 | MCP tools | Context7 docs, Chrome DevTools, DuckDuckGo search, DesignMD |
@@ -24,11 +24,11 @@ Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 ### User-Space Setup (Recommended)
 
 ```fish
-# Fresh install — builds llama.cpp, downloads models, no sudo
-bash llama/setup-mtp.sh --model nvfp4
+# Fresh install — builds llama.cpp, downloads + converts models, no sudo
+bash llama/setup-mtp.sh --model qwen38     # Qwen3.8-27B NVFP4-MTP (converted from safetensors)
 
 # Rebuild only (keeps models)
-bash llama/setup-mtp.sh --model nvfp4 --update
+bash llama/setup-mtp.sh --model qwen38 --update
 ```
 
 Builds llama.cpp from mainline (ggml-org) with MTP PR #22673. Installs to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/share/rtx-testing/models/`. Idempotent — re-runs skip what's installed.
@@ -37,8 +37,11 @@ Builds llama.cpp from mainline (ggml-org) with MTP PR #22673. Installs to `~/.lo
 
 ```fish
 # ⭐ NVFP4-MTP (daily driver — best quality + speed)
-./scripts/switch-model.sh nvfp4        # Qwen3.6-27B NVFP4-MTP, 131K
-./scripts/switch-model.sh nvfp4-262k   # Qwen3.6-27B NVFP4-MTP, 262K (experimental)
+./scripts/switch-model.sh nvfp4        # Qwen3.8-27B NVFP4-MTP, 131K
+./scripts/switch-model.sh nvfp4-262k   # Qwen3.8-27B NVFP4-MTP, 262K (experimental)
+
+# Previous daily driver
+./scripts/switch-model.sh qwen36       # Qwen3.6-27B NVFP4-MTP, 131K
 
 # Status, logs, stop
 ./scripts/switch-model.sh status       # Running models + GPU info
@@ -97,7 +100,7 @@ Uses `tool-eval-bench` against running llama-server. Results saved to `runs/` di
 
 ### Results
 
-**Best result:** Qwen3.6-27B NVFP4-MTP GGUF — **93/100**, 1.2s median, best context tracking.
+**Best result:** Qwen3.8-27B NVFP4-MTP GGUF (converted from sakamakismile safetensors).
 
 Full benchmark results and comparisons: [`benchmarks/results.md`](benchmarks/results.md)
 
@@ -107,7 +110,7 @@ Template at `opencode/opencode.json.tlp` — copy to `~/.config/opencode/opencod
 
 | Provider | Model | Backend | Notes |
 | --- | --- | --- | --- |
-| `llama-nvfp4-mtp` | Qwen3.6-27B NVFP4-MTP GGUF | llama.cpp | **Daily driver**, 131K/262K, vision |
+| `llama-nvfp4-mtp` | Qwen3.8-27B NVFP4-MTP GGUF | llama.cpp | **Daily driver**, 131K/262K, vision |
 | `llama-qwen` | Qwen3.6-27B Dense | llama.cpp | Q4_K_XL, 131K |
 
 Switch models: `opencode --model llama-nvfp4-mtp/qwen3.6-27b-nvfp4-mtp-gguf`
@@ -243,10 +246,10 @@ The new `switch-model.sh` uses `systemd-run --user` for background management (n
 ./scripts/switch-model.sh status
 
 # Logs
-journalctl --user -u rtx-qwen3-6-27b-nvfp4-mtp-131k -f
+journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-131k -f
 
 # Stop
-systemctl --user stop rtx-qwen3-6-27b-nvfp4-mtp-131k
+systemctl --user stop rtx-qwen3-8-27b-nvfp4-mtp-131k
 ```
 
 Requires `nvidia-persistenced` to prevent GPU memory leaks:
@@ -258,8 +261,8 @@ sudo systemctl enable --now nvidia-persistenced
 
 | Model | temp | top_p | top_k | min_p |
 | --- | --- | --- | --- | --- |
-| Qwen3.6-27B MTP (coding) | 0.6 | 0.95 | 20 | 0.0 |
-| Qwen3.6-27B (thinking off) | 0.7 | 0.8 | 20 | 0.0 |
+| Qwen3.8-27B MTP (coding) | 0.6 | 0.95 | 20 | 0.0 |
+| Qwen3.8-27B (thinking off) | 0.7 | 0.8 | 20 | 0.0 |
 | Gemma 4 31B (default) | 1.0 | 0.95 | 64 | — |
 | Gemma 4 31B (coding) | 0.7 | 0.95 | 64 | — |
 
@@ -320,11 +323,13 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 | Resource | URL |
 | --- | --- |
 | Qwen Fixed Chat Templates | https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates |
-| Qwen3.6-27B | https://huggingface.co/Qwen/Qwen3.6-27B |
-| NVFP4-MTP GGUF (Qwen) | https://huggingface.co/nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF |
-| NVFP4-MTP safetensors (Qwen) | https://huggingface.co/sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP |
-| Unsloth GGUF (Qwen MTP) | https://huggingface.co/unsloth/Qwen3.6-27B-MTP-GGUF |
-| Unsloth GGUF (Qwen non-MTP) | https://huggingface.co/unsloth/Qwen3.6-27B-GGUF |
+| Qwen3.8-27B | https://huggingface.co/Qwen/Qwen3.8-27B |
+| NVFP4-MTP safetensors (Qwen3.8) | https://huggingface.co/sakamakismile/Qwen3.8-27B-MTP-NVFP4 |
+| Unsloth GGUF (Qwen3.8) | https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
+| MTP-ONLY draft (Qwen3.8) | https://huggingface.co/a4lg/Qwen3.8-27B-MTP-ONLY-GGUF |
+| NVFP4-MTP GGUF (Qwen3.6) | https://huggingface.co/nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF |
+| NVFP4-MTP safetensors (Qwen3.6) | https://huggingface.co/sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP |
+| Unsloth GGUF (Qwen3.6 MTP) | https://huggingface.co/unsloth/Qwen3.6-27B-MTP-GGUF |
 | Unsloth GGUF (Qwen3.6-35B-A3B MTP) | https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF |
 | Gemma 4 31B | https://deepmind.google/models/gemma/gemma-4/ |
 | Unsloth GGUF (Gemma 4) | https://huggingface.co/unsloth/gemma-4-31B-it-GGUF |
