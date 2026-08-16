@@ -24,14 +24,14 @@ models:
     server_args: >-
       -m {models_dir}/qwen3.8-27b-nvfp4-mtp/qwen3.8-27b-text-nvfp4-mtp.gguf
       --mmproj {models_dir}/qwen3.8-27b-nvfp4-mtp/mmproj-F16.gguf
-      -fitt 8192 -c 131072 -n 32768 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -fitt 8192 -c 131072 -n 65536 -fa on -ngl 99 -np 1 -t 16 -tb 16
       -ctk bf16 -ctv bf16 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 8192
       --cache-idle-slots --no-warmup
       --spec-type draft-mtp --spec-draft-n-max 2
-      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0
-      --presence-penalty 1.5 --repeat-penalty 1.0
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 0.0 --repeat-penalty 1.0
       --jinja --chat-template-file {config_dir}/chat_template.jinja
-      --reasoning on
+      --reasoning on --reasoning-format deepseek --reasoning-budget 16384
       --host 0.0.0.0 --port 10500
 
   qwen3.8-27b-nvfp4-mtp-262k:
