@@ -1,9 +1,9 @@
 {
-  "chat_template_version": "v3.0.0",
+  "chat_template_version": "v3.1.0",
   "source": "https://huggingface.co/sakamakismile/Qwen3.8-27B-MTP-NVFP4/resolve/main/chat_template.jinja",
   "commit": "6d98dc1f1d5259c9582794014b73852baf20f805",
   "description": "Patched Qwen3.8 chat template for coding-agent/tool-calling use (sakamakismile base + repo patches)",
-  "sha256": "16c398cdeaa11d132873f2b86e6c391b8d2c7118cde4857bc75ad1c7a86b7431",
+  "sha256": "bd7647103048889558b6a7c845c013d1879e9b1a3573aa3be52d48869e88cbc0",
   "features": [
     "system/developer message folding",
     "think_on/think_off toggles",

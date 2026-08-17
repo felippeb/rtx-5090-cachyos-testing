@@ -31,7 +31,9 @@ models:
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
       --presence-penalty 0.0 --repeat-penalty 1.0
       --jinja --chat-template-file {config_dir}/chat_template.jinja
-      --reasoning on --reasoning-format deepseek --reasoning-budget 16384
+      --reasoning on --reasoning-format deepseek --reasoning-budget 4096
+      --reasoning-budget-message "I have reached my reasoning budget. I will now provide my final answer or take the most appropriate action based on my analysis so far."
+      --chat-template-kwargs '{"reasoning_effort":"xhigh"}'
       --host 0.0.0.0 --port 10500
 
   qwen3.8-27b-nvfp4-mtp-262k:

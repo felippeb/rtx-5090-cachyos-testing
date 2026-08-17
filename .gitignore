@@ -36,3 +36,6 @@ benchmarks/wattage-v2-results-*.json
 
 # Logs
 logs/
+
+# vLLM (deprecated — user-space llama.cpp only)
+vllm/
