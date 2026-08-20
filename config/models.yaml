@@ -36,6 +36,29 @@ models:
       --chat-template-kwargs '{"reasoning_effort":"xhigh"}'
       --host 0.0.0.0 --port 10500
 
+  qwen3.8-27b-nvfp4-mtp-196k:
+    display_name: "Qwen3.8-27B NVFP4-MTP (196K)"
+    aliases: [qwen38-196k, nvfp4-196k, nvfp4-mid]
+    model_dir: qwen3.8-27b-nvfp4-mtp
+    hf_repo: null
+    filename: qwen3.8-27b-text-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.8-27B-GGUF
+    server_args: >-
+      -m {models_dir}/qwen3.8-27b-nvfp4-mtp/qwen3.8-27b-text-nvfp4-mtp.gguf
+      --mmproj {models_dir}/qwen3.8-27b-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 8192 -c 196608 -n 65536 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk q8_0 -ctv q8_0 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 6144
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --reasoning on --reasoning-format deepseek --reasoning-budget 4096
+      --reasoning-budget-message "I have reached my reasoning budget. I will now provide my final answer or take the most appropriate action based on my analysis so far."
+      --chat-template-kwargs '{"reasoning_effort":"xhigh"}'
+      --host 0.0.0.0 --port 10500
+
   qwen3.8-27b-nvfp4-mtp-262k:
     display_name: "Qwen3.8-27B NVFP4-MTP (262K experimental)"
     aliases: [qwen38-262k, nvfp4-262k, nvfp4-long]
@@ -49,7 +72,7 @@ models:
       -m {models_dir}/qwen3.8-27b-nvfp4-mtp/qwen3.8-27b-text-nvfp4-mtp.gguf
       --mmproj {models_dir}/qwen3.8-27b-nvfp4-mtp/mmproj-F16.gguf
       -fitt 8192 -c 262144 -n 65536 -fa on -ngl 99 -np 1 -t 16 -tb 16
-      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 64 -cram 4096
+      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 4096
       --cache-idle-slots --no-warmup
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
@@ -95,7 +118,7 @@ models:
       -m {models_dir}/qwen3.6-27b-nvfp4-mtp/qwen3.6-27b-text-nvfp4-mtp.gguf
       --mmproj {models_dir}/qwen3.6-27b-nvfp4-mtp/mmproj-F16.gguf
       -fitt 5120 -c 262144 -n 16384 -fa on -ngl 99 -np 1 -t 16 -tb 16
-      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 64 -cram 4096
+      -ctk q4_1 -ctv q4_1 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 4096
       --cache-idle-slots --no-warmup
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0

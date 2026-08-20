@@ -32,6 +32,9 @@ Builds to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/sha
 ```bash
 ./scripts/diagnose.sh        # GPU, driver, services, template hash
 ./scripts/diagnose.sh --json # Machine-readable output
+
+# Follow user-service logs (last 100 lines, tail)
+journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-131k -f -n 100
 ```
 
 ### Benchmarks
@@ -42,6 +45,28 @@ Builds to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/sha
 python3 benchmarks/humaneval.py          # HumanEval pass@k evaluation
 python3 scripts/mtp-bench.py             # MTP speculative decoding benchmark
 ```
+
+### mem0 — local memory layer (opencode plugin)
+
+Self-hosted mem0 for opencode. LLM = daily driver (`:10500`), embeddings =
+second llama-server (`:8080`, nomic-embed-text-v1.5), mem0 API on `:8001`
+(FastAPI wrapper over `mem0.Memory`, Qdrant embedded store).
+
+```bash
+./scripts/mem0-setup.sh             # Idempotent: bring up / verify the whole stack
+journalctl --user -u mem0-api -f    # API logs (uvicorn)
+journalctl --user -u llama-embed -f # embedding llama-server logs
+```
+
+- Services are `systemd-run --user` units `llama-embed` + `mem0-api`
+  (Restart=on-failure). Named to avoid `switch-model.sh stop_existing`
+  (`rtx-*`/`llama-server-*` globs) killing them on model switches.
+- Plugin: `@fables092/opencode-mem0` in `opencode.json`; reads
+  `~/.config/opencode/mem0.jsonc` (baseUrl `http://localhost:8001`).
+- `mem0-server/app.py` exposes `POST /memories`, `GET /memories`,
+  `DELETE /memories/{id}`, `POST /search` (plugin's expected surface).
+- Data in `~/.local/share/rtx-testing/mem0/` (Qdrant + SQLite history).
+- `:8000` is taken by the duckduckgo MCP server — mem0 is on `:8001`.
 
 ### NEVER DO
 
