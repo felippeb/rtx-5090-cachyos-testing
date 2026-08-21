@@ -326,6 +326,8 @@ nvidia-smi --query-gpu=temperature.gpu,power.draw,clocks.gr --format=csv
 | Qwen3.8-27B | https://huggingface.co/Qwen/Qwen3.8-27B |
 | NVFP4-MTP safetensors (Qwen3.8) | https://huggingface.co/sakamakismile/Qwen3.8-27B-MTP-NVFP4 |
 | NVFP4-MTP GGUF (Qwen3.8, converted by this repo) | https://huggingface.co/felippeburk/Qwen3.8-27B-NVFP4-MTP-GGUF |
+| Huihui-Qwen3.8-27B abliterated NVFP4 (safetensors) | https://huggingface.co/sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4 |
+| Huihui abliterated NVFP4-MTP GGUF (converted by this repo) | https://huggingface.co/felippeburk/Huihui-Qwen3.8-27B-Abliterated-NVFP4-MTP-GGUF |
 | Unsloth GGUF (Qwen3.8) | https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
 | MTP-ONLY draft (Qwen3.8) | https://huggingface.co/a4lg/Qwen3.8-27B-MTP-ONLY-GGUF |
 | NVFP4-MTP GGUF (Qwen3.6) | https://huggingface.co/nilayparikh/Qwen3.6-27B-Text-NVFP4-MTP-GGUF |
