@@ -7,6 +7,8 @@
 ```bash
 # Start the daily driver model
 ./scripts/switch-model.sh nvfp4
+# Other registered models (see config/models.yaml): huihui (Huihui-Qwen3.8-27B abliterated)
+./scripts/switch-model.sh huihui
 
 # Check status and GPU info
 ./scripts/switch-model.sh status
@@ -67,6 +69,24 @@ journalctl --user -u llama-embed -f # embedding llama-server logs
   `DELETE /memories/{id}`, `POST /search` (plugin's expected surface).
 - Data in `~/.local/share/rtx-testing/mem0/` (Qdrant + SQLite history).
 - `:8000` is taken by the duckduckgo MCP server — mem0 is on `:8001`.
+
+### dsh — DeepSeek Harness Web GUI
+
+The DeepSeek Harness checkout (`~/repos/github/deepseek-harness`,
+`pnpm dsh web`) served as a user service on `:3080`.
+
+```bash
+./scripts/dsh-web.sh start     # start (transient systemd user unit dsh-web)
+./scripts/dsh-web.sh stop      # stop
+./scripts/dsh-web.sh status    # running? PID + URL
+./scripts/dsh-web.sh logs      # last 50 lines; `logs -f` to follow
+```
+
+- Same `systemd-run --user --collect` pattern as mem0 (Restart=on-failure);
+  unit name `dsh-web` avoids the `switch-model.sh` stop globs.
+- Transient: does not survive reboot. Requires built artifacts
+  (`cd ~/repos/github/deepseek-harness && pnpm run build`).
+- Port override: `DSH_WEB_PORT=4000 ./scripts/dsh-web.sh start`.
 
 ### NEVER DO
 

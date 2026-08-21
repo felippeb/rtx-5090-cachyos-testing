@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # User-space MTP setup — builds llama.cpp into ~/.local, no sudo required.
-# Supports: Qwen3.8-27B NVFP4-MTP (converted), Qwen3.6-27B NVFP4-MTP, Qwopus3.6-27B v2 NVFP4-MTP
+# Supports: Qwen3.8-27B NVFP4-MTP (converted), Qwen3.6-27B NVFP4-MTP, Qwopus3.6-27B v2 NVFP4-MTP,
+#           Huihui-Qwen3.8-27B abliterated NVFP4-MTP (converted)
 #
-# Usage: bash llama/setup-mtp.sh [--model qwen38|nvfp4|qwopus] [--update] [--hf-token TOKEN]
+# Usage: bash llama/setup-mtp.sh [--model qwen38|nvfp4|qwopus|huihui] [--update] [--hf-token TOKEN]
 
 set -euo pipefail
 
@@ -22,7 +23,7 @@ while [[ $# -gt 0 ]]; do
             HF_TOKEN="$2"; shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2
-            echo "Usage: bash $0 [--model qwen38|nvfp4|qwopus] [--update] [--hf-token TOKEN]"
+            echo "Usage: bash $0 [--model qwen38|nvfp4|qwopus|huihui] [--update] [--hf-token TOKEN]"
             exit 1 ;;
     esac
 done
@@ -84,6 +85,13 @@ MODEL_NAME[qwopus]="Qwopus3.6-27B-v2-MTP-NVFP4-GGUF.gguf"
 MODEL_DIR_NAME[qwopus]="qwopus3.6-27b-nvfp4-mtp"
 MODEL_MMPROJ[qwopus]=""
 MODEL_MMPROJ_REPO[qwopus]=""
+
+MODEL_HF_REPO[huihui]="sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4"
+MODEL_NAME[huihui]="huihui-qwen3.8-27b-abliterated-nvfp4-mtp.gguf"
+MODEL_DIR_NAME[huihui]="huihui-qwen3.8-27b-abliterated-nvfp4-mtp"
+MODEL_MMPROJ[huihui]="mmproj-F16.gguf"
+MODEL_MMPROJ_REPO[huihui]="unsloth/Qwen3.8-27B-GGUF"
+MODEL_SOURCE[huihui]="safetensors"
 
 # ─── Section 1: Prerequisites ───────────────────────────────────
 section_prerequisites() {
@@ -430,6 +438,7 @@ main() {
         qwen38)  alias_list="qwen38" ;;
         nvfp4)   alias_list="nvfp4" ;;
         qwopus)  alias_list="qwopus" ;;
+        huihui)  alias_list="huihui" ;;
         *)       alias_list="$MODEL" ;;
     esac
 

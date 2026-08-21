@@ -127,6 +127,33 @@ models:
       --reasoning off
       --host 0.0.0.0 --port 10500
 
+  # ─── Huihui Qwen3.8-27B abliterated NVFP4+MTP (sakamakismile quant) ───
+  # Abliterated (uncensored) fine-tune of Qwen3.8-27B. README: use
+  # reasoning_effort "medium" — at "xhigh" the think phase can run away
+  # past the token budget and never terminate.
+  huihui-qwen3.8-27b-abliterated-nvfp4-mtp-192k:
+    display_name: "Huihui Qwen3.8-27B Abliterated NVFP4-MTP (192K)"
+    aliases: [huihui, huihui-nvfp4, abliterated, uncensored]
+    model_dir: huihui-qwen3.8-27b-abliterated-nvfp4-mtp
+    hf_repo: null
+    filename: huihui-qwen3.8-27b-abliterated-nvfp4-mtp.gguf
+    mmproj_filename: mmproj-F16.gguf
+    mmproj_hf_repo: unsloth/Qwen3.8-27B-GGUF
+    server_args: >-
+      -m {models_dir}/huihui-qwen3.8-27b-abliterated-nvfp4-mtp/huihui-qwen3.8-27b-abliterated-nvfp4-mtp.gguf
+      --mmproj {models_dir}/huihui-qwen3.8-27b-abliterated-nvfp4-mtp/mmproj-F16.gguf
+      -fitt 8192 -c 196608 -n 65536 -fa on -ngl 99 -np 1 -t 16 -tb 16
+      -ctk q8_0 -ctv q8_0 -ctkd q4_1 -ctvd q4_1 -ctxcp 16 -cram 6144
+      --cache-idle-slots --no-warmup
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --jinja --chat-template-file {config_dir}/chat_template.jinja
+      --reasoning on --reasoning-format deepseek --reasoning-budget 4096
+      --reasoning-budget-message "I have reached my reasoning budget. I will now provide my final answer or take the most appropriate action based on my analysis so far."
+      --chat-template-kwargs '{"reasoning_effort":"medium"}'
+      --host 0.0.0.0 --port 10500
+
   # ─── Qwopus3.6-27B v2 NVFP4+MTP (Jackrong merge, michaelw9999 quant) ───
   qwopus3.6-27b-nvfp4-mtp:
     display_name: "Qwopus3.6-27B v2 NVFP4-MTP"
