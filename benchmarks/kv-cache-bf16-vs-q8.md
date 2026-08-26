@@ -16,20 +16,22 @@ Identical configs except `-ctk`/`-ctv`. Both legs at `-c 131072` (the largest co
 --reasoning on --reasoning-budget 4096 --chat-template-kwargs '{"reasoning_effort":"xhigh"}'
 ```
 
-Benchmark: `./benchmarks/run-tool-bench.sh --short` (15 scenarios, `--seed 42`, tool-eval-bench v1.7.0).
+Benchmark: `./benchmarks/run-tool-bench.sh --short` (15 scenarios, `--seed 42`, tool-eval-bench v1.7.0). **3 runs per leg**, identical server config — variance comes only from temp-1.0 sampling.
 
 ## Results
 
-| Leg | KV cache | Score | Points | Median turn | Responsiveness | Deployability |
-|---|---|---|---|---|---|---|
-| A | bf16 | 93/100 | 28/30 (TC-06 multi-value extraction ❌) | 1.0s | 84 | 90 |
-| B | q8_0 | **100/100** | 30/30 ✅ | 1.0s | 84 | 95 |
+| Leg | KV cache | Runs (score) | Points | TC-06 multi-value extraction | Median turn |
+|---|---|---|---|---|---|
+| A | bf16 | 93, 93, 93 | 28/30 ×3 | ❌ FAIL 3/3 runs | 1.0s |
+| B | q8_0 | **100, 100, 100** | 30/30 ×3 | ✅ pass 3/3 runs | 1.0s |
+
+(An earlier single-run pass on 2026-08-26 scored bf16 93 / q8_0 100 with the same pattern; the repeat series confirms it.)
 
 ## Verdict
 
-**No measurable quality penalty for q8_0.** The single flipped scenario is within run-to-run noise at temp 1.0 sampling (single run per leg; see the 97/100 anomaly note in [results.md](results.md) for how much single-run scores can wobble). Combined with q8_0 using exactly half the KV memory per token (32 KiB vs 64 KiB/token on this model), q8_0 is the default choice above 131K context — and costs nothing at any context.
+**q8_0 loses nothing — and consistently outperformed bf16 on this benchmark.** Zero score variance within each leg (3/3 identical) and a stable 7-point gap: the TC-06 failure is deterministic under bf16, not sampling noise. Whatever the microarchitectural cause, there is no evidence of any quality cost for q8_0 K/V quantization — while it uses exactly half the KV memory per token (32 KiB vs 64 KiB/token on this model).
 
-Caveats: tool-calling quality at 131K only; long-context recall at 192Ki was not separately evaluated.
+Caveats: tool-calling quality at 131K only; long-context recall at 192Ki was not separately evaluated; a 15-scenario subset (TC-06 is one scenario — a full 69-scenario run could confirm whether the gap generalizes).
 
 ## Related finding: bf16 cannot reach 192Ki
 
