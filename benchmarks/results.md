@@ -32,6 +32,7 @@ The two 97/100 runs used `Qwen3.6-27B-UD-Q4_K_XL` with MTP enabled. These scores
 ## Key Findings
 
 - **MTP cost**: Speculative decoding consistently drops quality ~2pts (92→90 for Qwen3.6-27B)
+- **KV cache q8_0 vs bf16**: No measurable quality difference (A/B, Qwen3.8 NVFP4-MTP) — see [`kv-cache-bf16-vs-q8.md`](kv-cache-bf16-vs-q8.md); bf16 can't fit ≥168K context anyway
 - **NVFP4 advantage**: Preserves more precision than Q4_K_XL → 93 vs 92 at same backend
 - **Gemma 4**: Weakest context tracking (65%), not recommended for agentic use cases
 - **Sleeper injection (TC-60)**: Model-level vulnerability across all Qwen quantizations (AWQ, NVFP4, GGUF) — not quantization-specific

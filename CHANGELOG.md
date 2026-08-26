@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - Declarative model registry (`config/models.yaml`) with aliases and context safety tiers
+- `benchmarks/kv-cache-bf16-vs-q8.md` — KV cache A/B: q8_0 shows no measurable quality loss vs bf16; bf16 OOMs above ~160K context
 - `scripts/diagnose.sh` — runtime diagnostics (GPU, driver, services, template hash)
 - `scripts/build-manifest.sh` — reproducibility manifest (git, system, GPU metadata)
 - HuggingFace CLI venv at `~/.local/share/rtx-testing/.venv-hf/` (user-space, no sudo)

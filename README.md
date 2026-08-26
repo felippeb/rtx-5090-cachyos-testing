@@ -201,7 +201,7 @@ sudo bash llama/setup-gemma4-mtp.sh --update     # Refresh build + services (kee
 
 ## KV Cache Types
 
-Use `-ctk` and `-ctv` to control key/value cache precision. bf16 recommended for quality, q4_1 for VRAM savings.
+Use `-ctk` and `-ctv` to control key/value cache precision. q8_0 is the default — A/B testing found no measurable quality loss vs bf16 ([details](benchmarks/kv-cache-bf16-vs-q8.md)), and bf16 doesn't fit ≥168K context anyway.
 
 | Type | Compression | Notes |
 | --- | --- | --- |
