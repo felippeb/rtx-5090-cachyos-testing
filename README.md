@@ -2,7 +2,7 @@
 
 Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 
-**Daily driver:** Qwen3.8-27B NVFP4-MTP (131K context) via llama.cpp mainline | NVFP4 GGUF (converted from sakamakismile safetensors) | Best overall quality + speed.
+**Daily driver:** Qwen3.8-27B NVFP4-MTP (196K context) via llama.cpp mainline | NVFP4 GGUF (converted from sakamakismile safetensors) | Best overall quality + speed.
 
 ## Stack
 
@@ -13,7 +13,7 @@ Local AI coding environment on CachyOS with NVIDIA RTX 5090.
 | Shell | fish |
 | CUDA | 13.3 (driver 610.43.02) |
 | Runtime | llama.cpp mainline (ggml-org) + MTP PR #22673 (NVFP4 native), vLLM |
-| Default model | Qwen3.8-27B NVFP4-MTP (~20 GB, 131K context, NVFP4 + speculative decoding) |
+| Default model | Qwen3.8-27B NVFP4-MTP (~20 GB, 196K context, NVFP4 + speculative decoding) |
 | Build location | `~/.local/share/rtx-testing/llama.cpp-nvfp4/` (user-space, no sudo) |
 | UI | OpenCode, Claude Code (CLI + VS Code), Open WebUI |
 | MCP tools | Context7 docs, Chrome DevTools, DuckDuckGo search, DesignMD |
@@ -37,7 +37,8 @@ Builds llama.cpp from mainline (ggml-org) with MTP PR #22673. Installs to `~/.lo
 
 ```fish
 # ⭐ NVFP4-MTP (daily driver — best quality + speed)
-./scripts/switch-model.sh nvfp4        # Qwen3.8-27B NVFP4-MTP, 131K
+./scripts/switch-model.sh nvfp4-196k   # Qwen3.8-27B NVFP4-MTP, 196K (daily driver)
+./scripts/switch-model.sh nvfp4        # Qwen3.8-27B NVFP4-MTP, 131K (bf16 KV cache)
 ./scripts/switch-model.sh nvfp4-262k   # Qwen3.8-27B NVFP4-MTP, 262K (experimental)
 
 # Previous daily driver
@@ -110,12 +111,12 @@ Template at `opencode/opencode.json.tlp` — copy to `~/.config/opencode/opencod
 
 | Provider | Model | Backend | Notes |
 | --- | --- | --- | --- |
-| `llama-nvfp4-mtp` | Qwen3.8-27B NVFP4-MTP GGUF | llama.cpp | **Daily driver**, 131K/262K, vision |
+| `llama-nvfp4-mtp` | Qwen3.8-27B NVFP4-MTP GGUF | llama.cpp | **Daily driver**, 131K/196K/262K, vision |
 | `llama-qwen` | Qwen3.6-27B Dense | llama.cpp | Q4_K_XL, 131K |
 
 Switch models: `opencode --model llama-nvfp4-mtp/qwen3.6-27b-nvfp4-mtp-gguf`
 
-Context limit note: keep OpenCode context below full server capacity. The server hosts 131K, but advertising all of it lets OpenCode send very large prompts that spend most of their time in prompt evaluation.
+Context limit note: keep OpenCode context below full server capacity. The server hosts 196K, but advertising all of it lets OpenCode send very large prompts that spend most of their time in prompt evaluation.
 
 ### Persistent Memory Plugin
 
@@ -226,16 +227,16 @@ nvcc --version    # Cuda compilation tools, release 13.3
 paru -S --needed base-devel cmake git uv gcc15 aria2
 
 # User-space setup (recommended):
-bash llama/setup-mtp.sh --model nvfp4
+bash llama/setup-mtp.sh --model qwen38
 ```
 
-### 3. Start Server (User-Space, MTP, 131K)
+### 3. Start Server (User-Space, MTP, 196K)
 
 ```fish
-./scripts/switch-model.sh nvfp4
+./scripts/switch-model.sh nvfp4-196k
 ```
 
-bf16 KV cache prevents attention collapse over long contexts. Draft cache (`-ctkd/-ctvd`) can stay q4_1 since it's discarded per step.
+The 196K tier uses a q8_0 K/V cache to fit 196608 tokens in 32 GB (bf16 K/V only fits up to the 131K tier). Draft cache (`-ctkd/-ctvd`) can stay q4_1 since it's discarded per step.
 
 ### User-Space Systemd Service
 
@@ -246,10 +247,10 @@ The new `switch-model.sh` uses `systemd-run --user` for background management (n
 ./scripts/switch-model.sh status
 
 # Logs
-journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-131k -f
+journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-196k -f
 
 # Stop
-systemctl --user stop rtx-qwen3-8-27b-nvfp4-mtp-131k
+systemctl --user stop rtx-qwen3-8-27b-nvfp4-mtp-196k
 ```
 
 Requires `nvidia-persistenced` to prevent GPU memory leaks:
@@ -401,7 +402,7 @@ Models with context sizes outside the stable range are flagged in `config/models
 
 | Tier | Range | Models |
 | --- | --- | --- |
-| **Stable** | 8K – 131K | Default for all models |
+| **Stable** | 8K – 196K | Default for all models |
 | **Experimental** | 262K | NVFP4-MTP-262K |
 | **Research** | 1M+ | Not currently deployed |
 
