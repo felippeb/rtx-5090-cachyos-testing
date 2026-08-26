@@ -15,7 +15,7 @@ models:
   # ─── Qwen3.8-27B NVFP4+MTP (daily driver) ─────────────────────
   qwen3.8-27b-nvfp4-mtp-131k:
     display_name: "Qwen3.8-27B NVFP4-MTP (131K)"
-    aliases: [qwen38, nvfp4, nvfp4-mtp, daily-driver, default]
+    aliases: [qwen38, nvfp4, nvfp4-mtp]
     model_dir: qwen3.8-27b-nvfp4-mtp
     hf_repo: null
     filename: qwen3.8-27b-text-nvfp4-mtp.gguf
@@ -38,7 +38,7 @@ models:
 
   qwen3.8-27b-nvfp4-mtp-196k:
     display_name: "Qwen3.8-27B NVFP4-MTP (196K)"
-    aliases: [qwen38-196k, nvfp4-196k, nvfp4-mid]
+    aliases: [qwen38-196k, nvfp4-196k, nvfp4-mid, daily-driver, default]
     model_dir: qwen3.8-27b-nvfp4-mtp
     hf_repo: null
     filename: qwen3.8-27b-text-nvfp4-mtp.gguf

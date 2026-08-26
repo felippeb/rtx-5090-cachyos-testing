@@ -1,12 +1,12 @@
 # RTX 5090 Local AI — Agent Instructions
 
-## Daily Driver: Qwen3.8-27B NVFP4-MTP (131K)
+## Daily Driver: Qwen3.8-27B NVFP4-MTP (196K)
 
 ### Start / Stop / Status
 
 ```bash
 # Start the daily driver model
-./scripts/switch-model.sh nvfp4
+./scripts/switch-model.sh nvfp4-196k
 # Other registered models (see config/models.yaml): huihui (Huihui-Qwen3.8-27B abliterated)
 ./scripts/switch-model.sh huihui
 
@@ -36,7 +36,7 @@ Builds to `~/.local/share/rtx-testing/llama.cpp-nvfp4/`, models to `~/.local/sha
 ./scripts/diagnose.sh --json # Machine-readable output
 
 # Follow user-service logs (last 100 lines, tail)
-journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-131k -f -n 100
+journalctl --user -u rtx-qwen3-8-27b-nvfp4-mtp-196k -f -n 100
 ```
 
 ### Benchmarks
