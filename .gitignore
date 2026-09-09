@@ -39,3 +39,6 @@ logs/
 
 # vLLM (deprecated — user-space llama.cpp only)
 vllm/
+
+# Win11 VM experiment (abandoned — did not work; local-only)
+vm/

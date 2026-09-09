@@ -65,6 +65,8 @@ journalctl --user -u llama-embed -f # embedding llama-server logs
   (`rtx-*`/`llama-server-*` globs) killing them on model switches.
 - Plugin: `@fables092/opencode-mem0` in `opencode.json`; reads
   `~/.config/opencode/mem0.jsonc` (baseUrl `http://localhost:8001`).
+  Tuned config incl. container tags: `mem0-server/mem0.jsonc.example`
+  (setup script writes the base config without the tags).
 - `mem0-server/app.py` exposes `POST /memories`, `GET /memories`,
   `DELETE /memories/{id}`, `POST /search` (plugin's expected surface).
 - Data in `~/.local/share/rtx-testing/mem0/` (Qdrant + SQLite history).
@@ -78,6 +80,7 @@ The DeepSeek Harness checkout (`~/repos/github/deepseek-harness`,
 ```bash
 ./scripts/dsh-web.sh start     # start (transient systemd user unit dsh-web)
 ./scripts/dsh-web.sh stop      # stop
+./scripts/dsh-web.sh update    # git pull + pnpm install/build + restart
 ./scripts/dsh-web.sh status    # running? PID + URL
 ./scripts/dsh-web.sh logs      # last 50 lines; `logs -f` to follow
 ```

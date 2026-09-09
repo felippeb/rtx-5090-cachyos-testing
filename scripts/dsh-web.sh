@@ -3,7 +3,7 @@
 # Pattern: transient systemd user unit (same as llama-embed / mem0-api).
 #   Unit:  dsh-web (--collect: disappears after stop, survives reboots NOT — restart via this script)
 #   Serves: http://127.0.0.1:3080 from ~/repos/github/deepseek-harness
-# Usage: scripts/dsh-web.sh {start|stop|restart|status|logs [-f] [N]}
+# Usage: scripts/dsh-web.sh {start|stop|restart|update|status|logs [-f] [N]}
 set -euo pipefail
 
 REPO_DIR="${DSH_REPO:-$HOME/repos/github/deepseek-harness}"
@@ -69,6 +69,33 @@ start() {
     wait_http "http://127.0.0.1:$PORT" "dsh web"
 }
 
+update() {
+    [[ -d "$REPO_DIR" ]] || fail "dsh repo not found at $REPO_DIR (set DSH_REPO to override)"
+    [[ -x "$PNPM_BIN" ]] || fail "pnpm not found at $PNPM_BIN (set PNPM_BIN to override)"
+
+    info "Updating dsh (repo: $REPO_DIR)..."
+
+    if git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        info "Pulling latest changes..."
+        git -C "$REPO_DIR" pull --ff-only || \
+            fail "git pull failed (local changes or non-fast-forward). Resolve manually, then re-run: $0 update"
+    else
+        warn "Not a git checkout; skipping pull."
+    fi
+
+    info "Installing dependencies..."
+    ( cd "$REPO_DIR" && "$PNPM_BIN" install ) || fail "pnpm install failed"
+
+    info "Building frontend..."
+    ( cd "$REPO_DIR" && "$PNPM_BIN" run build ) || fail "pnpm run build failed"
+
+    info "Restarting dsh-web to pick up the new build..."
+    stop
+    sleep 1
+    start
+    ok "dsh-web updated and running at http://127.0.0.1:$PORT"
+}
+
 stop() {
     if ! is_running; then
         warn "dsh-web is not running"
@@ -105,7 +132,8 @@ case "${1:-}" in
     start)   start ;;
     stop)    stop ;;
     restart) stop; sleep 1; start ;;
+    update)  update ;;
     status)  status ;;
     logs)    shift; logs "$@" ;;
-    *) fail "Usage: $0 {start|stop|restart|status|logs [-f] [N]}" ;;
+    *) fail "Usage: $0 {start|stop|restart|update|status|logs [-f] [N]}" ;;
 esac

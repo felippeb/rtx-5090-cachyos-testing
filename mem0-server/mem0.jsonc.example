@@ -1,0 +1,7 @@
+{
+  "baseUrl": "http://localhost:8001",
+  "similarityThreshold": 0.35,
+  "maxMemories": 10,
+  "userContainerTag": "felippeburk",
+  "projectContainerTag": "felippeburk"
+}

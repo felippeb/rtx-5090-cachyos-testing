@@ -57,7 +57,9 @@ class MemoryCreate(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     user_id: Optional[str] = None
+    filters: Optional[Dict[str, Any]] = None
     limit: int = 10
+    top_k: Optional[int] = None
     threshold: float = 0.1
 
 
@@ -93,11 +95,14 @@ def delete_memory(memory_id: str):
 
 @app.post("/search")
 def search_memories(req: SearchRequest):
-    if not req.user_id:
+    user_id = req.user_id or (req.filters or {}).get("user_id")
+    if not user_id:
         raise HTTPException(400, "user_id is required")
+    if req.top_k is not None:
+        req.limit = req.top_k
     return memory.search(
         req.query,
-        filters={"user_id": req.user_id},
+        filters={"user_id": user_id},
         top_k=req.limit,
         threshold=req.threshold,
     )

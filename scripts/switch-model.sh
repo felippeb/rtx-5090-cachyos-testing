@@ -256,8 +256,14 @@ stop_existing() {
 
         info "Waiting for GPU memory to free (target: ${MIN_FREE} MiB)..."
         while [[ $ELAPSED -lt $TIMEOUT ]]; do
-            FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ') || true
-            if [[ -n "$FREE_MIB" ]] && (( FREE_MIB >= MIN_FREE )); then
+            FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ') || FREE_MIB=""
+            # no GPU visible (e.g. detached for VFIO passthrough) — nothing to wait for
+            if ! nvidia-smi -L &>/dev/null; then
+                ok "No NVIDIA GPU visible — proceeding."
+                break
+            fi
+            # NOTE: guard arithmetic — nvidia-smi prints non-numeric text when no devices exist
+            if [[ "$FREE_MIB" =~ ^[0-9]+$ ]] && (( FREE_MIB >= MIN_FREE )); then
                 ok "GPU free: ${FREE_MIB} MiB — proceeding."
                 break
             fi
@@ -268,7 +274,7 @@ stop_existing() {
             ELAPSED=$((ELAPSED + 1))
         done
 
-        if (( FREE_MIB < MIN_FREE )); then
+        if [[ "$FREE_MIB" =~ ^[0-9]+$ ]] && (( FREE_MIB < MIN_FREE )); then
             warn "GPU memory not fully freed after ${TIMEOUT}s (${FREE_MIB} MiB free, needed ${MIN_FREE} MiB)."
             warn "Proceeding anyway — model may fall back to CPU."
         fi
